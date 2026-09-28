@@ -4,6 +4,7 @@ import { AnalysisResult, RuleFailure } from "../models/AnalysisResult";
 import { DesignModel } from "../models/DesignModel";
 import { Finding, SEVERITY_ORDER } from "../models/Finding";
 import { Rule } from "../rules/Rule";
+import { naturalCompare } from "../utils/text";
 import { summarizeModel } from "./modelSummary";
 
 export function analyzeModel(model: DesignModel, rules: readonly Rule[]): AnalysisResult {
@@ -23,7 +24,7 @@ export function analyzeModel(model: DesignModel, rules: readonly Rule[]): Analys
         (a, b) =>
             SEVERITY_ORDER.indexOf(a.severity) - SEVERITY_ORDER.indexOf(b.severity) ||
             (ruleOrder.get(a.ruleId) ?? 0) - (ruleOrder.get(b.ruleId) ?? 0) ||
-            a.affectedObjects.join(", ").localeCompare(b.affectedObjects.join(", "), undefined, { numeric: true }),
+            naturalCompare(a.affectedObjects.join(", "), b.affectedObjects.join(", ")),
     );
     return { summary: summarizeModel(model), findings, ruleFailures };
 }
