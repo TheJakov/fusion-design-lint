@@ -103,8 +103,6 @@ To debug in Fusion, link the `DesignLint/` folder as described above, then **Sto
 Diagnostics (timings, anything that couldn't be inspected, Locate failures) go to Fusion's **TEXT COMMANDS** window.
 
 - `docs/TESTING.md`: unit tests vs the manual in-Fusion checklist.
-- `internal notes`: verified Fusion API behavior, including TypeScript-runtime pitfalls (`instanceof`,
-  `localeCompare`, palettes, entity tokens, selection) that type-check fine but fail inside Fusion.
 
 ### Project structure
 
@@ -122,7 +120,7 @@ DesignLint/                   the add-in (the folder Fusion loads)
     └── constants.ts          IDs, rule settings, default-name patterns, Fusion enum values
 tests/                        unit tests + fixtures
 scripts/typecheck.mjs         finds Fusion's bundled typings and type-checks the add-in
-docs/                         API notes, testing guide, original project brief
+docs/                         testing guide, images
 ```
 
 ### Architecture

@@ -15,7 +15,7 @@ The tests cover the **pure layer**: rules, the analysis engine, the model summar
 plain `DesignModel` fixtures (`tests/fixtures/models.ts`), not Fusion API objects. Nothing here pretends to test
 the Fusion API.
 
-Covered cases (from the project brief): clean model, under-constrained sketch, problematic sketch, default names,
+Covered cases: clean model, under-constrained sketch, problematic sketch, default names,
 repeated hard-coded values, a mixed model. Also covered: deterministic ordering, rule-failure isolation,
 extraction-issue grouping and ICU-free sorting. The fragile-reference case is a `todo` until Rule 5 exists.
 
@@ -27,8 +27,8 @@ Fusion install. `@adsk/fusion` is not on npm. VS Code uses the same file for Int
 
 ## 2. Fusion integration tests (manual)
 
-Code that passes `tsc` and Node can still fail inside Fusion: its TypeScript runtime isn't Node
-(see `internal notes`). After changing anything under `DesignLint/src/analyzer/` or `DesignLint/src/ui/`,
+Code that passes `tsc` and Node can still fail inside Fusion: its TypeScript runtime isn't Node.
+After changing anything under `DesignLint/src/analyzer/` or `DesignLint/src/ui/`,
 or `DesignLint/resources/`, stop and run the add-in in Fusion and check:
 
 - [ ] Add-in starts; **Analyze Design** appears in the Design workspace (Utilities → ADD-INS).

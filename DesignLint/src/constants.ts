@@ -21,7 +21,7 @@ export const DESIGN_WORKSPACE_ID = "FusionSolidEnvironment";
 export const ADDINS_PANEL_ID = "SolidScriptsAddinsPanel";
 
 // Fusion Base.objectType values. Used instead of `instanceof`, which throws in
-// Fusion's TypeScript runtime (see internal notes).
+// Fusion's TypeScript runtime.
 export const OBJECT_TYPES = {
     design: "adsk::fusion::Design",
     component: "adsk::fusion::Component",

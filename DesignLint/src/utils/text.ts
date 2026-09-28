@@ -1,5 +1,5 @@
 // String helpers that avoid Intl/ICU: Fusion's TypeScript runtime throws "Internal error. Icu error"
-// from String.localeCompare with options (see internal notes).
+// from String.localeCompare with options.
 
 const CHUNK_PATTERN = /(\d+)|(\D+)/g;
 

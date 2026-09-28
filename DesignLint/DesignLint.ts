@@ -1,8 +1,7 @@
 // DesignLint — Autodesk Fusion
 // Add-in entry point. Fusion calls run() when the add-in starts and stop() when it stops.
 //
-// Fusion API usage is verified against the bundled typings and Autodesk's reference
-// (see internal notes).
+// Fusion API usage is verified against the typings bundled with Fusion and Autodesk's API reference.
 
 import { adsk } from "@adsk/fusion";
 import { registerCommands, unregisterCommands } from "./src/ui/command";
