@@ -1,0 +1,14 @@
+{
+  "name": "fusion-design-lint",
+  "private": true,
+  "description": "DesignLint — CAD quality & parametric design analysis for Autodesk Fusion. Dev tooling only; the add-in itself is DesignLint/.",
+  "scripts": {
+    "typecheck": "node scripts/typecheck.mjs",
+    "test": "tsc -p tsconfig.test.json && node --test \".test-build/tests/**/*.test.js\"",
+    "check": "npm run typecheck && npm test"
+  },
+  "devDependencies": {
+    "@types/node": "~22.20.4",
+    "typescript": "~5.9.3"
+  }
+}
