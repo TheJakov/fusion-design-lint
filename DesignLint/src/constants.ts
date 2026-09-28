@@ -18,3 +18,16 @@ export const ADDINS_PANEL_ID = "SolidScriptsAddinsPanel";
 export const OBJECT_TYPES = {
     design: "adsk::fusion::Design",
 } as const;
+
+// Numeric values of Fusion `const enum`s, taken from the bundled typings (fusion.d.ts).
+// Fusion's transpiler may not inline const enums, so we don't reference them at runtime.
+export const DESIGN_TYPES = {
+    direct: 0,
+    parametric: 1,
+} as const;
+
+export const DESIGN_INTENT_TYPES = {
+    part: 0,
+    assembly: 1,
+    hybrid: 2,
+} as const;
