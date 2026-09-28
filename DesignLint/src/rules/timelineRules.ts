@@ -5,8 +5,10 @@ import { TimelineItemInfo } from "../models/DesignModel";
 import { Finding } from "../models/Finding";
 import { Rule } from "./Rule";
 
+/** e.g. "Fillet3 (FilletFeature in Frame)" */
 function itemLabel(item: TimelineItemInfo): string {
-    return item.entityType ? `${item.name} (${item.entityType})` : item.name;
+    const details = [item.entityType, item.componentName ? `in ${item.componentName}` : null].filter(Boolean).join(" ");
+    return details ? `${item.name} (${details})` : item.name;
 }
 
 export const timelineHealthRule: Rule = {

@@ -3,7 +3,7 @@
 // extraction continues with the rest of the design.
 
 import { adsk } from "@adsk/fusion";
-import { DESIGN_INTENT_TYPES, DESIGN_TYPES, FEATURE_HEALTH_STATES } from "../constants";
+import { CONSTRUCTION_TYPE_PREFIX, DESIGN_INTENT_TYPES, DESIGN_TYPES, FEATURE_HEALTH_STATES } from "../constants";
 import {
     BodyInfo,
     ComponentInfo,
@@ -281,13 +281,30 @@ function extractTimelineItem(
     attempt: Attempt,
 ): TimelineItemInfo {
     const name = attempt("timeline item name", () => obj.name, "(unnamed timeline item)");
+    const entity = attempt(`entity of timeline item ${name}`, () => obj.entity ?? null, null);
+    const entityType = attempt(`type of timeline item ${name}`, () => shortObjectType(entity), null);
     return {
         name,
-        entityType: attempt(`entity of timeline item ${name}`, () => shortObjectType(obj.entity), null),
+        entityType,
+        componentName: attempt(`component of timeline item ${name}`, () => owningComponentName(entity, entityType), null),
         groupName,
         healthState: attempt(`health of timeline item ${name}`, () => toHealthState(obj.healthState), "unknown"),
         healthMessage: attempt(`health message of timeline item ${name}`, () => obj.errorOrWarningMessage ?? "", ""),
     };
+}
+
+/**
+ * Features, joints and rigid groups expose Feature/Joint/RigidGroup.parentComponent; construction
+ * geometry exposes ConstructionPlane/Axis/Point.component. Other types (e.g. Occurrence, whose
+ * `component` is the referenced component, not the owner) return null.
+ */
+function owningComponentName(entity: adsk.core.Base | null, entityType: string | null): string | null {
+    if (!entity || !entityType) {
+        return null;
+    }
+    const owner = entity as { parentComponent?: adsk.fusion.Component | null; component?: adsk.fusion.Component | null };
+    const component = entityType.startsWith(CONSTRUCTION_TYPE_PREFIX) ? owner.component : owner.parentComponent;
+    return component ? component.name : null;
 }
 
 /** "adsk::fusion::ExtrudeFeature" -> "ExtrudeFeature"; null when there is no entity. */

@@ -5,8 +5,9 @@ import { PRODUCT_NAME } from "../constants";
 import { AnalysisResult } from "../models/AnalysisResult";
 import { Finding, Severity } from "../models/Finding";
 
-/** Keeps the message box readable; the full list goes to the log. */
+/** Keeps the message box readable; the full lists go to the log. */
 const MAX_FINDINGS_IN_DIALOG = 10;
+const MAX_OBJECTS_PER_FINDING_IN_DIALOG = 5;
 
 const SEVERITY_LABELS: Record<Severity, string> = {
     critical: "Critical",
@@ -58,11 +59,14 @@ export function formatAnalysisReport(result: AnalysisResult, elapsedMs: number):
 
 /** One line per finding, with the full description, for the log. */
 export function formatFindingForLog(finding: Finding): string {
-    return `${formatFindingLine(finding)} [${finding.ruleId}] ${finding.description}`;
+    return `${formatFindingLine(finding, Infinity)} [${finding.ruleId}] ${finding.description}`;
 }
 
-function formatFindingLine(finding: Finding): string {
-    return `[${SEVERITY_LABELS[finding.severity]}] ${finding.title}: ${finding.affectedObjects.join(", ")}`;
+function formatFindingLine(finding: Finding, maxObjects = MAX_OBJECTS_PER_FINDING_IN_DIALOG): string {
+    const shown = finding.affectedObjects.slice(0, maxObjects);
+    const hidden = finding.affectedObjects.length - shown.length;
+    const objects = shown.join(", ") + (hidden > 0 ? `, +${hidden} more` : "");
+    return `[${SEVERITY_LABELS[finding.severity]}] ${finding.title}: ${objects}`;
 }
 
 function countBySeverity(findings: Finding[], severity: Severity): number {

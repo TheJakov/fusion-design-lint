@@ -55,6 +55,8 @@ export interface TimelineItemInfo {
     name: string;
     /** Fusion object type without namespace, e.g. "ExtrudeFeature"; null if Fusion exposes no API entity. */
     entityType: string | null;
+    /** Owning component, when Fusion exposes it for this entity type (features, joints, construction geometry). */
+    componentName: string | null;
     /** Name of the timeline group containing the item, if any. */
     groupName: string | null;
     healthState: HealthState;

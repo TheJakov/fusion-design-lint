@@ -24,6 +24,9 @@ export const ENTITY_TYPES = {
     sketch: "Sketch",
 } as const;
 
+/** Construction geometry types expose their owner as `component` rather than `parentComponent`. */
+export const CONSTRUCTION_TYPE_PREFIX = "Construction";
+
 // Numeric values of Fusion `const enum`s, taken from the bundled typings (fusion.d.ts).
 // Fusion's transpiler may not inline const enums, so we don't reference them at runtime.
 export const DESIGN_TYPES = {
@@ -51,4 +54,21 @@ export const RULE_IDS = {
     sketchUnderConstrained: "sketch-under-constrained",
     sketchHealth: "sketch-health",
     timelineHealth: "timeline-health",
+    defaultNames: "default-names",
 } as const;
+
+// Default-name detection (rule "default-names").
+// A name is "default" when, after normalization (lower case, trailing " (n)" copy suffix removed,
+// spaces/hyphens/underscores removed), it is one of these bases followed by digits, e.g. "Sketch12".
+// Timeline items also match their own type: ExtrudeFeature -> "extrude" matches "Extrude3".
+// Based on Fusion's English UI naming; localized UIs generate other names and are not detected.
+export const DEFAULT_NAME_BASES = {
+    sketch: ["sketch"],
+    body: ["body"],
+    component: ["component"],
+    /** Extra bases for timeline items whose default name differs from their type. */
+    timelineItem: ["plane", "axis", "point"],
+} as const;
+
+/** Suffix stripped from a timeline item's type to get its default-name base. */
+export const FEATURE_TYPE_SUFFIX = "Feature";
