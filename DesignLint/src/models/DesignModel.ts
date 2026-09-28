@@ -8,6 +8,8 @@ export type HealthState = "healthy" | "warning" | "error" | "suppressed" | "roll
 
 export interface ComponentInfo {
     name: string;
+    /** Fusion entity token for locating the object later (Design.findEntityByToken); null if unavailable. */
+    entityToken: string | null;
     isRoot: boolean;
     /** Externally referenced (lives in another document). Its contents are not inspected; counts are 0. */
     isExternal: boolean;
@@ -19,6 +21,8 @@ export interface ComponentInfo {
 
 export interface BodyInfo {
     name: string;
+    /** Fusion entity token for locating the object later (Design.findEntityByToken); null if unavailable. */
+    entityToken: string | null;
     componentName: string;
     isSolid: boolean;
     isVisible: boolean;
@@ -37,6 +41,8 @@ export interface UnconstrainedEntityCounts {
 
 export interface SketchInfo {
     name: string;
+    /** Fusion entity token for locating the object later (Design.findEntityByToken); null if unavailable. */
+    entityToken: string | null;
     componentName: string;
     /** Null if Fusion could not report it. */
     isFullyConstrained: boolean | null;
@@ -53,6 +59,8 @@ export interface SketchInfo {
 /** A feature, joint, sketch, etc. in the design timeline (group rows excluded). */
 export interface TimelineItemInfo {
     name: string;
+    /** Fusion entity token for locating the object later (Design.findEntityByToken); null if unavailable. */
+    entityToken: string | null;
     /** Fusion object type without namespace, e.g. "ExtrudeFeature"; null if Fusion exposes no API entity. */
     entityType: string | null;
     /** Owning component, when Fusion exposes it for this entity type (features, joints, construction geometry). */
@@ -82,6 +90,8 @@ export interface ModelParameterInfo {
     ownerName: string;
     /** Owner type without namespace, e.g. "ExtrudeFeature", "SketchLinearDimension". */
     ownerType: string;
+    /** Entity token of the owner (the sketch, for sketch dimensions); null if unavailable. */
+    ownerEntityToken: string | null;
     expression: string;
     unit: string;
     /** Value in Fusion internal units (cm, radians). */

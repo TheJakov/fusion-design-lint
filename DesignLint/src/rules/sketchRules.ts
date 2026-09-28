@@ -2,11 +2,11 @@
 
 import { RULE_IDS } from "../constants";
 import { SketchInfo } from "../models/DesignModel";
-import { Finding } from "../models/Finding";
+import { AffectedObject, Finding } from "../models/Finding";
 import { Rule } from "./Rule";
 
-function sketchLabel(sketch: SketchInfo): string {
-    return `${sketch.name} (${sketch.componentName})`;
+function sketchObject(sketch: SketchInfo): AffectedObject {
+    return { name: `${sketch.name} (${sketch.componentName})`, entityToken: sketch.entityToken };
 }
 
 /** Suppressed and rolled-back sketches aren't computed, so their state isn't meaningful. */
@@ -58,7 +58,7 @@ export const sketchUnderConstrainedRule: Rule = {
                 description:
                     `Fusion reports that ${sketch.name} in ${sketch.componentName} is not fully constrained.${detail} ` +
                     "Unconstrained geometry can move unexpectedly when dimensions or referenced geometry change.",
-                affectedObjects: [sketchLabel(sketch)],
+                affectedObjects: [sketchObject(sketch)],
                 ruleId: RULE_IDS.sketchUnderConstrained,
                 canAutoFix: false,
             });
@@ -85,7 +85,7 @@ export const sketchHealthRule: Rule = {
                 category: "sketch",
                 title: isError ? "Sketch has an error in Fusion" : "Sketch has a warning in Fusion",
                 description: `Fusion reports ${isError ? "an error" : "a warning"} on ${sketch.name} in ${sketch.componentName}.${fusionMessage}`,
-                affectedObjects: [sketchLabel(sketch)],
+                affectedObjects: [sketchObject(sketch)],
                 ruleId: RULE_IDS.sketchHealth,
                 canAutoFix: false,
             });

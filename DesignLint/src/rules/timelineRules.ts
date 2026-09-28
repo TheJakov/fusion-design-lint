@@ -34,7 +34,7 @@ export const timelineHealthRule: Rule = {
                 category: "feature",
                 title: isError ? "Timeline item has an error in Fusion" : "Timeline item has a warning in Fusion",
                 description: `Fusion reports ${isError ? "an error" : "a warning"} on ${itemLabel(item)}${where}.${fusionMessage}`,
-                affectedObjects: [itemLabel(item)],
+                affectedObjects: [{ name: itemLabel(item), entityToken: item.entityToken }],
                 ruleId: RULE_IDS.timelineHealth,
                 canAutoFix: false,
             });

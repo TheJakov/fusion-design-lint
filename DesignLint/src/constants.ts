@@ -24,11 +24,13 @@ export const ADDINS_PANEL_ID = "SolidScriptsAddinsPanel";
 // Fusion's TypeScript runtime (see internal notes).
 export const OBJECT_TYPES = {
     design: "adsk::fusion::Design",
+    component: "adsk::fusion::Component",
 } as const;
 
 // Short entity type names (Base.objectType without namespace) used by rules.
 export const ENTITY_TYPES = {
     sketch: "Sketch",
+    occurrence: "Occurrence",
 } as const;
 
 /** Construction geometry types expose their owner as `component` rather than `parentComponent`. */

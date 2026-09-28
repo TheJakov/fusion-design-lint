@@ -1,7 +1,7 @@
 // Organization rules: maintainability suggestions, never engineering errors.
 
 import { DEFAULT_NAME_BASES, ENTITY_TYPES, FEATURE_TYPE_SUFFIX, RULE_IDS } from "../constants";
-import { Finding } from "../models/Finding";
+import { AffectedObject, Finding } from "../models/Finding";
 import { naturalCompare } from "../utils/text";
 import { Rule } from "./Rule";
 
@@ -31,7 +31,7 @@ function typeBase(entityType: string): string {
 interface NameGroup {
     /** Labels, e.g. ["sketch", "sketches"]. */
     kind: readonly [singular: string, plural: string];
-    names: string[];
+    objects: AffectedObject[];
 }
 
 export const defaultNamesRule: Rule = {
@@ -42,26 +42,26 @@ export const defaultNamesRule: Rule = {
         const groups: NameGroup[] = [
             {
                 kind: ["component", "components"],
-                names: model.components
+                objects: model.components
                     .filter((c) => !c.isRoot && !c.isExternal && isDefaultName(c.name, DEFAULT_NAME_BASES.component))
-                    .map((c) => c.name),
+                    .map((c) => ({ name: c.name, entityToken: c.entityToken })),
             },
             {
                 kind: ["body", "bodies"],
-                names: model.bodies
+                objects: model.bodies
                     .filter((b) => isDefaultName(b.name, DEFAULT_NAME_BASES.body))
-                    .map((b) => `${b.name} (${b.componentName})`),
+                    .map((b) => ({ name: `${b.name} (${b.componentName})`, entityToken: b.entityToken })),
             },
             {
                 kind: ["sketch", "sketches"],
-                names: model.sketches
+                objects: model.sketches
                     .filter((s) => isDefaultName(s.name, DEFAULT_NAME_BASES.sketch))
-                    .map((s) => `${s.name} (${s.componentName})`),
+                    .map((s) => ({ name: `${s.name} (${s.componentName})`, entityToken: s.entityToken })),
             },
             {
                 // Sketches are covered above via model.sketches.
                 kind: ["feature or other timeline item", "features and other timeline items"],
-                names: model.timelineItems
+                objects: model.timelineItems
                     .filter((item) => item.entityType !== ENTITY_TYPES.sketch)
                     .filter((item) =>
                         isDefaultName(item.name, [
@@ -69,16 +69,19 @@ export const defaultNamesRule: Rule = {
                             ...DEFAULT_NAME_BASES.timelineItem,
                         ]),
                     )
-                    .map((item) => (item.componentName ? `${item.name} (${item.componentName})` : item.name)),
+                    .map((item) => ({
+                        name: item.componentName ? `${item.name} (${item.componentName})` : item.name,
+                        entityToken: item.entityToken,
+                    })),
             },
         ];
 
         const findings: Finding[] = [];
         for (const group of groups) {
-            if (group.names.length === 0) {
+            if (group.objects.length === 0) {
                 continue;
             }
-            const count = group.names.length;
+            const count = group.objects.length;
             const label = count === 1 ? group.kind[0] : group.kind[1];
             findings.push({
                 id: `${RULE_IDS.defaultNames}:${findings.length}`,
@@ -89,7 +92,7 @@ export const defaultNamesRule: Rule = {
                     `${count} ${label} ${count === 1 ? "still has" : "still have"} the name Fusion generated. ` +
                     "Descriptive names make the browser and timeline easier to navigate and changes easier to review. " +
                     "This is a maintainability suggestion, not an engineering error.",
-                affectedObjects: [...group.names].sort(naturalCompare),
+                affectedObjects: [...group.objects].sort((a, b) => naturalCompare(a.name, b.name)),
                 ruleId: RULE_IDS.defaultNames,
                 canAutoFix: false,
             });

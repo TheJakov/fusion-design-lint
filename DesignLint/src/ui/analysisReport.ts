@@ -63,7 +63,7 @@ export function formatFindingForLog(finding: Finding): string {
 }
 
 function formatFindingLine(finding: Finding, maxObjects = MAX_OBJECTS_PER_FINDING_IN_DIALOG): string {
-    const shown = finding.affectedObjects.slice(0, maxObjects);
+    const shown = finding.affectedObjects.slice(0, maxObjects).map((o) => o.name);
     const hidden = finding.affectedObjects.length - shown.length;
     const objects = shown.join(", ") + (hidden > 0 ? `, +${hidden} more` : "");
     return `[${SEVERITY_LABELS[finding.severity]}] ${finding.title}: ${objects}`;

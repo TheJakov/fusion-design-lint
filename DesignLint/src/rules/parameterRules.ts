@@ -2,7 +2,7 @@
 
 import { REPEATED_VALUES, RULE_IDS, UNIT_KINDS } from "../constants";
 import { ModelParameterInfo, UserParameterInfo } from "../models/DesignModel";
-import { Finding } from "../models/Finding";
+import { AffectedObject, Finding } from "../models/Finding";
 import { naturalCompare } from "../utils/text";
 import { Rule } from "./Rule";
 
@@ -51,7 +51,15 @@ export const repeatedValuesRule: Rule = {
 
         const findings: Finding[] = [];
         for (const [key, params] of groups) {
-            const owners = [...new Set(params.map(ownerLabel))].sort(naturalCompare);
+            // One entry per distinct owner (a feature or sketch can hold the value several times).
+            const byOwner = new Map<string, AffectedObject>();
+            for (const param of params) {
+                const label = ownerLabel(param);
+                if (!byOwner.has(label)) {
+                    byOwner.set(label, { name: label, entityToken: param.ownerEntityToken });
+                }
+            }
+            const owners = [...byOwner.values()].sort((a, b) => naturalCompare(a.name, b.name));
             if (owners.length < REPEATED_VALUES.minOwners) {
                 continue;
             }

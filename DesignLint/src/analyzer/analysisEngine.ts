@@ -24,7 +24,11 @@ export function analyzeModel(model: DesignModel, rules: readonly Rule[]): Analys
         (a, b) =>
             SEVERITY_ORDER.indexOf(a.severity) - SEVERITY_ORDER.indexOf(b.severity) ||
             (ruleOrder.get(a.ruleId) ?? 0) - (ruleOrder.get(b.ruleId) ?? 0) ||
-            naturalCompare(a.affectedObjects.join(", "), b.affectedObjects.join(", ")),
+            naturalCompare(objectNames(a), objectNames(b)),
     );
     return { summary: summarizeModel(model), findings, ruleFailures };
+}
+
+function objectNames(finding: Finding): string {
+    return finding.affectedObjects.map((o) => o.name).join(", ");
 }

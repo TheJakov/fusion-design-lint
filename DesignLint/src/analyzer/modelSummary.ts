@@ -1,7 +1,9 @@
 // Pure: builds a ModelSummary from a DesignModel. No Fusion API access.
 
-import { DesignModel } from "../models/DesignModel";
-import { ModelSummary } from "../models/ModelSummary";
+import { DesignModel, ExtractionIssue } from "../models/DesignModel";
+import { IssueGroup, ModelSummary } from "../models/ModelSummary";
+
+const MAX_ISSUE_EXAMPLES = 3;
 
 export function summarizeModel(model: DesignModel): ModelSummary {
     let featureCount = 0;
@@ -38,5 +40,20 @@ export function summarizeModel(model: DesignModel): ModelSummary {
         modelParameterCount,
         timelineItemCount: model.timelineItemCount,
         issueCount: model.issues.length,
+        issueGroups: groupIssues(model.issues),
     };
+}
+
+/** Groups extraction issues by message, largest group first. */
+export function groupIssues(issues: ExtractionIssue[]): IssueGroup[] {
+    const byMessage = new Map<string, IssueGroup>();
+    for (const issue of issues) {
+        const group = byMessage.get(issue.message) ?? { message: issue.message, count: 0, examples: [] };
+        group.count++;
+        if (group.examples.length < MAX_ISSUE_EXAMPLES) {
+            group.examples.push(issue.location);
+        }
+        byMessage.set(issue.message, group);
+    }
+    return [...byMessage.values()].sort((a, b) => b.count - a.count);
 }

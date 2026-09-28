@@ -9,6 +9,14 @@ export type Severity = "critical" | "warning" | "info";
 
 export type FindingCategory = "sketch" | "parameter" | "reference" | "organization" | "feature" | "manufacturing";
 
+/** An object a finding refers to. */
+export interface AffectedObject {
+    /** Human-readable name, e.g. "Sketch3 (Frame)". */
+    name: string;
+    /** Fusion entity token used by Locate; null when the object can't be located. */
+    entityToken: string | null;
+}
+
 export interface Finding {
     /** Unique within one analysis run. */
     id: string;
@@ -16,8 +24,7 @@ export interface Finding {
     category: FindingCategory;
     title: string;
     description: string;
-    /** Human-readable names of the affected objects, e.g. "Sketch3 (Frame)". */
-    affectedObjects: string[];
+    affectedObjects: AffectedObject[];
     ruleId: string;
     canAutoFix: boolean;
 }

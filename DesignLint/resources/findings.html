@@ -36,16 +36,20 @@ td { padding: 6px; border-bottom: 1px solid var(--border); vertical-align: top; 
   user-select: text; }
 tr:nth-child(even) td { background: var(--row-alt); }
 tr:nth-child(odd) td { background: var(--row); }
-th.sev, td.sev { width: 82px; } th.rule, td.rule { width: 150px; } th.actions, td.actions { width: 70px; }
+th.sev, td.sev { width: 82px; } th.rule, td.rule { width: 150px; } th.actions, td.actions { width: 76px; }
 button { white-space: nowrap; }
 .badge { display: inline-block; padding: 1px 6px; border-radius: 3px; font-size: 11px; font-weight: 600; color: #fff; }
 .badge.critical { background: var(--critical); } .badge.warning { background: var(--warning); color: #1f2328; }
 .badge.info { background: var(--info); }
 .finding-title { font-weight: 600; }
 .objects { margin-top: 2px; }
+a.obj { color: var(--accent); text-decoration: none; cursor: pointer; }
+a.obj:hover { text-decoration: underline; }
+td.actions button { display: block; width: 100%; margin-bottom: 4px; }
 .description { margin-top: 3px; color: var(--muted); }
 .rule code { font-size: 11px; color: var(--muted); }
-#notices div { padding: 4px 8px; margin: 4px 0; border-left: 3px solid var(--warning); background: var(--panel); }
+#notices .issue { padding: 2px 0 0 12px; border: 0; margin: 0; background: none; user-select: text; }
+#notices > div { padding: 4px 8px; margin: 4px 0; border-left: 3px solid var(--warning); background: var(--panel); }
 #empty { padding: 16px 6px; }
 #toast { position: fixed; right: 12px; bottom: 12px; background: var(--accent); color: #fff; padding: 4px 10px;
   border-radius: 4px; opacity: 0; transition: opacity .2s; pointer-events: none; }
@@ -103,7 +107,12 @@ button { white-space: nowrap; }
 
     var notices = document.getElementById("notices");
     if (summary.issueCount > 0) {
-      notices.appendChild(el("div", "", summary.issueCount + " element(s) could not be inspected; see the TEXT COMMAND window."));
+      var notice = el("div", "", summary.issueCount + " element(s) could not be inspected:");
+      (summary.issueGroups || []).forEach(function (g) {
+        var more = g.count > g.examples.length ? "; +" + (g.count - g.examples.length) + " more" : "";
+        notice.appendChild(el("div", "small issue", g.count + "× " + g.message + " (" + g.examples.join("; ") + more + ")"));
+      });
+      notices.appendChild(notice);
     }
     if (result.ruleFailures.length > 0) {
       notices.appendChild(el("div", "", result.ruleFailures.length + " rule(s) failed to run: " +
@@ -131,14 +140,43 @@ button { white-space: nowrap; }
     return findings.filter(function (f) {
       if (!active[f.severity]) return false;
       if (!q) return true;
-      var hay = [f.title, f.description, f.ruleId, f.category].concat(f.affectedObjects).join(" ").toLowerCase();
+      var hay = [f.title, f.description, f.ruleId, f.category].concat(names(f)).join(" ").toLowerCase();
       return hay.indexOf(q) !== -1;
     });
   }
 
+  function names(f) { return f.affectedObjects.map(function (o) { return o.name; }); }
+  function targets(f) {
+    return f.affectedObjects.filter(function (o) { return o.entityToken; });
+  }
+
+  function locate(targetList) {
+    if (!window.adsk || typeof window.adsk.fusionSendData !== "function") {
+      toast("Locate is only available inside Fusion");
+      return;
+    }
+    window.adsk.fusionSendData("locate", JSON.stringify({ targets: targetList }));
+  }
+
+  function renderObjects(f) {
+    var box = el("div", "objects");
+    f.affectedObjects.forEach(function (o, i) {
+      if (i > 0) box.appendChild(document.createTextNode(", "));
+      if (o.entityToken) {
+        var a = el("a", "obj", o.name);
+        a.title = "Select " + o.name + " in Fusion";
+        a.onclick = function (e) { e.preventDefault(); locate([o]); };
+        box.appendChild(a);
+      } else {
+        box.appendChild(el("span", "", o.name));
+      }
+    });
+    return box;
+  }
+
   function findingText(f) {
     return "[" + LABELS[f.severity] + "] " + f.title + "\n" +
-      "Objects: " + f.affectedObjects.join(", ") + "\n" +
+      "Objects: " + names(f).join(", ") + "\n" +
       f.description + "\n" +
       "Rule: " + f.ruleId;
   }
@@ -157,7 +195,7 @@ button { white-space: nowrap; }
 
       var main = el("td");
       main.appendChild(el("div", "finding-title", f.title));
-      main.appendChild(el("div", "objects", f.affectedObjects.join(", ")));
+      main.appendChild(renderObjects(f));
       main.appendChild(el("div", "description", f.description));
       tr.appendChild(main);
 
@@ -166,6 +204,13 @@ button { white-space: nowrap; }
       tr.appendChild(rule);
 
       var actions = el("td", "actions");
+      var rowTargets = targets(f);
+      if (rowTargets.length > 0) {
+        var loc = el("button", "", "Locate");
+        loc.title = "Select " + (rowTargets.length === 1 ? "this object" : "these " + rowTargets.length + " objects") + " in Fusion";
+        loc.onclick = function () { locate(rowTargets); };
+        actions.appendChild(loc);
+      }
       var copy = el("button", "", "Copy");
       copy.title = "Copy this finding";
       copy.onclick = function () { copyText(findingText(f)); };
@@ -182,7 +227,7 @@ button { white-space: nowrap; }
   function copyAll() {
     var header = ["Severity", "Category", "Rule", "Finding", "Affected objects", "Description"].join("\t");
     var lines = visibleFindings().map(function (f) {
-      return [LABELS[f.severity], f.category, f.ruleId, f.title, f.affectedObjects.join(", "), f.description]
+      return [LABELS[f.severity], f.category, f.ruleId, f.title, names(f).join(", "), f.description]
         .map(tsvCell).join("\t");
     });
     copyText([header].concat(lines).join("\n"));
@@ -234,6 +279,7 @@ button { white-space: nowrap; }
     handle: function (action, data) {
       try {
         if (action === "results") show(JSON.parse(data));
+        else if (action === "locateResult") toast(JSON.parse(data).message);
         return "OK";
       } catch (e) {
         return "ERROR: " + e;

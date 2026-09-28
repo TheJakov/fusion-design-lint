@@ -107,7 +107,7 @@ function onExecute(_args: adsk.core.CommandEventArgs): void {
             log(`Rule ${failure.ruleId} failed: ${failure.message}`);
         }
         try {
-            showFindingsPalette(ui, { result, elapsedMs });
+            showFindingsPalette(ui, { result, elapsedMs }, { document: doc, design });
         } catch (err) {
             // Fall back to the plain-text report so results are never lost.
             reportFailure("Showing the findings palette", err);

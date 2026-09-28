@@ -1,5 +1,13 @@
 import { DesignIntentName, DesignTypeName } from "./DesignModel";
 
+/** Extraction failures that share the same error message. */
+export interface IssueGroup {
+    message: string;
+    count: number;
+    /** Up to a few locations, e.g. "token of timeline item Rigid 33". */
+    examples: string[];
+}
+
 export interface ModelSummary {
     documentName: string;
     designType: DesignTypeName;
@@ -17,4 +25,5 @@ export interface ModelSummary {
     modelParameterCount: number;
     timelineItemCount: number | null;
     issueCount: number;
+    issueGroups: IssueGroup[];
 }

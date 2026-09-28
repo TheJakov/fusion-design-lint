@@ -6,6 +6,7 @@ import { adsk } from "@adsk/fusion";
 import {
     CONSTRUCTION_TYPE_PREFIX,
     DESIGN_INTENT_TYPES,
+    ENTITY_TYPES,
     DESIGN_TYPES,
     FEATURE_HEALTH_STATES,
     PARAMETER_VALUE_TYPES,
@@ -26,6 +27,7 @@ import {
     UserParameterInfo,
 } from "../models/DesignModel";
 import { errorMessage, log } from "../utils/logging";
+import { groupIssues } from "./modelSummary";
 
 type Attempt = <T>(location: string, fn: () => T, fallback: T) => T;
 /** Formats a value in internal units (cm, radians) for display in the given unit. */
@@ -154,6 +156,7 @@ function scanOccurrences(
 function describeExternalComponent(component: adsk.fusion.Component, attempt: Attempt): ComponentInfo {
     return {
         name: attempt("external component name", () => component.name, "(unnamed component)"),
+        entityToken: null,
         isRoot: false,
         isExternal: true,
         bodyCount: 0,
@@ -163,22 +166,15 @@ function describeExternalComponent(component: adsk.fusion.Component, attempt: At
     };
 }
 
-/** Groups issues by message so repeated failures show up as one log line. */
+/** One log line per distinct failure message. */
 function logIssueSummary(issues: ExtractionIssue[]): void {
     if (issues.length === 0) {
         return;
     }
-    const byMessage = new Map<string, string[]>();
-    for (const issue of issues) {
-        const locations = byMessage.get(issue.message) ?? [];
-        locations.push(issue.location);
-        byMessage.set(issue.message, locations);
-    }
     log(`${issues.length} element(s) could not be inspected:`);
-    for (const [message, locations] of byMessage) {
-        const examples = locations.slice(0, 3).join("; ");
-        const more = locations.length > 3 ? `; +${locations.length - 3} more` : "";
-        log(`  ${locations.length}× "${message}" (${examples}${more})`);
+    for (const group of groupIssues(issues)) {
+        const more = group.count > group.examples.length ? `; +${group.count - group.examples.length} more` : "";
+        log(`  ${group.count}× "${group.message}" (${group.examples.join("; ")}${more})`);
     }
 }
 
@@ -200,7 +196,15 @@ function extractComponent(
             `body #${i} of ${name}`,
             () => {
                 const b = bodyCollection!.item(i);
-                return b ? { name: b.name, componentName: name, isSolid: b.isSolid, isVisible: b.isVisible } : null;
+                return b
+                    ? {
+                          name: b.name,
+                          entityToken: entityTokenOf(b),
+                          componentName: name,
+                          isSolid: b.isSolid,
+                          isVisible: b.isVisible,
+                      }
+                    : null;
             },
             null,
         );
@@ -220,6 +224,7 @@ function extractComponent(
 
     return {
         name,
+        entityToken: entityTokenOf(component),
         isRoot,
         isExternal: false,
         bodyCount,
@@ -254,6 +259,7 @@ function extractModelParameters(
                     role: p.role,
                     ownerName: owner.name,
                     ownerType: owner.type,
+                    ownerEntityToken: owner.entityToken,
                     expression: p.expression,
                     unit: p.unit,
                     value: p.value,
@@ -275,16 +281,38 @@ function extractModelParameters(
  * Sketch dimensions are reported by their sketch (SketchDimension.parentSketch); everything else
  * by its own name.
  */
-function describeParameterOwner(createdBy: adsk.core.Base | null): { name: string; type: string } {
+function describeParameterOwner(createdBy: adsk.core.Base | null): {
+    name: string;
+    type: string;
+    entityToken: string | null;
+} {
     const type = shortObjectType(createdBy) ?? "Unknown";
     if (!createdBy) {
-        return { name: "(unknown owner)", type };
+        return { name: "(unknown owner)", type, entityToken: null };
     }
     const owner = createdBy as { parentSketch?: adsk.fusion.Sketch | null; name?: string };
     if (type.endsWith("Dimension") && owner.parentSketch) {
-        return { name: owner.parentSketch.name, type };
+        return { name: owner.parentSketch.name, type, entityToken: entityTokenOf(owner.parentSketch) };
     }
-    return { name: typeof owner.name === "string" ? owner.name : `(${type})`, type };
+    return {
+        name: typeof owner.name === "string" ? owner.name : `(${type})`,
+        type,
+        entityToken: entityTokenOf(createdBy),
+    };
+}
+
+/**
+ * Best-effort entity token for Locate. Most Fusion entity classes have entityToken (core.Base does not),
+ * and some throw for certain proxies. A missing token only means the object can't be located, so it is
+ * not recorded as an extraction issue.
+ */
+function entityTokenOf(entity: object | null): string | null {
+    try {
+        const token = (entity as { entityToken?: unknown } | null)?.entityToken;
+        return typeof token === "string" && token !== "" ? token : null;
+    } catch {
+        return null;
+    }
 }
 
 function extractSketch(sketch: adsk.fusion.Sketch, componentName: string, attempt: Attempt): SketchInfo {
@@ -297,6 +325,7 @@ function extractSketch(sketch: adsk.fusion.Sketch, componentName: string, attemp
             : null;
     return {
         name,
+        entityToken: entityTokenOf(sketch),
         componentName,
         isFullyConstrained,
         unconstrainedEntities,
@@ -371,6 +400,10 @@ function extractTimelineItem(
     const entityType = attempt(`type of timeline item ${name}`, () => shortObjectType(entity), null);
     return {
         name,
+        // Occurrence entities in the timeline (component inserts, "Body->Comp") throw on entityToken
+        // ("Tokens can only be created for proxies whose top-level parent is the root component")
+        // and are never Locate targets, so skip them rather than pay for the exception.
+        entityToken: entityType === ENTITY_TYPES.occurrence ? null : entityTokenOf(entity),
         entityType,
         componentName: attempt(`component of timeline item ${name}`, () => owningComponentName(entity, entityType), null),
         groupName,
