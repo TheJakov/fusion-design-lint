@@ -99,17 +99,20 @@ export const UNIT_KINDS: Record<string, string> = {
 // A name is "default" when, after normalization (lower case, trailing " (n)" copy suffix removed,
 // spaces/hyphens/underscores removed), it is one of these bases followed by digits, e.g. "Sketch12".
 // Timeline items also match their own type: ExtrudeFeature -> "extrude" matches "Extrude3".
+// Timeline items are reported in three groups: features, construction geometry and joints.
 // Based on Fusion's English UI naming; localized UIs generate other names and are not detected.
 export const DEFAULT_NAME_BASES = {
     sketch: ["sketch"],
     body: ["body"],
     component: ["component"],
-    /**
-     * Extra bases for timeline items whose default name differs from their type: construction geometry,
-     * and joints, which Fusion names after their motion type ("Rigid 33", "Revolute2").
-     */
-    timelineItem: ["plane", "axis", "point", "rigid", "revolute", "slider", "cylindrical", "pinslot", "planar", "ball"],
+    /** Construction geometry is named "Plane1", "Axis2", "Point3", not after its type. */
+    construction: ["plane", "axis", "point"],
+    /** Joints are named after their motion type: "Rigid 33", "Revolute2". */
+    joint: ["rigid", "revolute", "slider", "cylindrical", "pinslot", "planar", "ball"],
 } as const;
+
+/** Timeline entity types reported in the joints group of default-names. */
+export const JOINT_ENTITY_TYPES: readonly string[] = ["Joint", "AsBuiltJoint", "RigidGroup"];
 
 /** Suffix stripped from a timeline item's type to get its default-name base. */
 export const FEATURE_TYPE_SUFFIX = "Feature";

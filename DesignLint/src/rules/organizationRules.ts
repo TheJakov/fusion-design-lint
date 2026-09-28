@@ -1,6 +1,14 @@
 // Organization rules: maintainability suggestions, never engineering errors.
 
-import { DEFAULT_NAME_BASES, ENTITY_TYPES, FEATURE_TYPE_SUFFIX, RULE_IDS } from "../constants";
+import {
+    CONSTRUCTION_TYPE_PREFIX,
+    DEFAULT_NAME_BASES,
+    ENTITY_TYPES,
+    FEATURE_TYPE_SUFFIX,
+    JOINT_ENTITY_TYPES,
+    RULE_IDS,
+} from "../constants";
+import { TimelineItemInfo } from "../models/DesignModel";
 import { AffectedObject, Finding } from "../models/Finding";
 import { naturalCompare } from "../utils/text";
 import { Rule } from "./Rule";
@@ -26,6 +34,39 @@ function typeBase(entityType: string): string {
         ? entityType.slice(0, -FEATURE_TYPE_SUFFIX.length)
         : entityType;
     return base.toLowerCase();
+}
+
+type TimelineKind = "feature" | "construction" | "joint";
+
+/**
+ * Which default-names group a timeline item belongs to, or null if its name isn't a default name.
+ * Items without an API type are classified by the base their name matches.
+ */
+function defaultNameKind(item: TimelineItemInfo): TimelineKind | null {
+    const own = item.entityType ? [typeBase(item.entityType)] : [];
+    if (item.entityType && JOINT_ENTITY_TYPES.includes(item.entityType)) {
+        return isDefaultName(item.name, [...own, ...DEFAULT_NAME_BASES.joint]) ? "joint" : null;
+    }
+    if (item.entityType?.startsWith(CONSTRUCTION_TYPE_PREFIX)) {
+        return isDefaultName(item.name, [...own, ...DEFAULT_NAME_BASES.construction]) ? "construction" : null;
+    }
+    if (item.entityType) {
+        return isDefaultName(item.name, own) ? "feature" : null;
+    }
+    if (isDefaultName(item.name, DEFAULT_NAME_BASES.joint)) {
+        return "joint";
+    }
+    return isDefaultName(item.name, DEFAULT_NAME_BASES.construction) ? "construction" : null;
+}
+
+function timelineObjects(model: { timelineItems: TimelineItemInfo[] }, kind: TimelineKind): AffectedObject[] {
+    return model.timelineItems
+        .filter((item) => item.entityType !== ENTITY_TYPES.sketch) // sketches come from model.sketches
+        .filter((item) => defaultNameKind(item) === kind)
+        .map((item) => ({
+            name: item.componentName ? `${item.name} (${item.componentName})` : item.name,
+            entityToken: item.entityToken,
+        }));
 }
 
 interface NameGroup {
@@ -58,22 +99,12 @@ export const defaultNamesRule: Rule = {
                     .filter((s) => isDefaultName(s.name, DEFAULT_NAME_BASES.sketch))
                     .map((s) => ({ name: `${s.name} (${s.componentName})`, entityToken: s.entityToken })),
             },
+            { kind: ["feature", "features"], objects: timelineObjects(model, "feature") },
             {
-                // Sketches are covered above via model.sketches.
-                kind: ["feature or other timeline item", "features and other timeline items"],
-                objects: model.timelineItems
-                    .filter((item) => item.entityType !== ENTITY_TYPES.sketch)
-                    .filter((item) =>
-                        isDefaultName(item.name, [
-                            ...(item.entityType ? [typeBase(item.entityType)] : []),
-                            ...DEFAULT_NAME_BASES.timelineItem,
-                        ]),
-                    )
-                    .map((item) => ({
-                        name: item.componentName ? `${item.name} (${item.componentName})` : item.name,
-                        entityToken: item.entityToken,
-                    })),
+                kind: ["construction geometry item", "construction geometry items"],
+                objects: timelineObjects(model, "construction"),
             },
+            { kind: ["joint", "joints"], objects: timelineObjects(model, "joint") },
         ];
 
         const findings: Finding[] = [];
