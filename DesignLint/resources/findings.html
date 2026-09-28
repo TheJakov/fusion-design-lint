@@ -1,0 +1,261 @@
+<!DOCTYPE html>
+<!-- DesignLint findings palette. Loaded by src/ui/findingsPalette.ts; results arrive via
+     palette.sendInfoToHTML("results", json) after the page sends "ready". -->
+<html>
+<head>
+<meta charset="utf-8">
+<title>DesignLint</title>
+<style>
+:root {
+  --bg: #2b2f36; --panel: #353a42; --row: #30343b; --row-alt: #2d3137; --border: #454b55;
+  --text: #e6e8eb; --muted: #9aa3ad; --accent: #0696d7;
+  --critical: #e5484d; --warning: #f5a524; --info: #3e9bf5;
+}
+@media (prefers-color-scheme: light) {
+  :root { --bg: #f5f6f7; --panel: #ffffff; --row: #ffffff; --row-alt: #f7f8f9; --border: #d8dbe0; --text: #1f2328; --muted: #5f6b76; }
+}
+* { box-sizing: border-box; }
+body { margin: 0; padding: 10px 12px; background: var(--bg); color: var(--text);
+  font: 12px/1.45 -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; }
+header { margin-bottom: 8px; }
+.title { font-size: 14px; font-weight: 600; display: flex; gap: 10px; align-items: baseline; flex-wrap: wrap; }
+.muted { color: var(--muted); font-weight: normal; }
+.small { font-size: 11px; }
+.toolbar { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin: 8px 0; }
+#severity-filters { display: flex; gap: 4px; }
+button { background: var(--panel); color: var(--text); border: 1px solid var(--border); border-radius: 4px;
+  padding: 3px 9px; font: inherit; cursor: pointer; }
+button:hover { border-color: var(--accent); }
+button.on { border-color: var(--accent); box-shadow: inset 0 0 0 1px var(--accent); }
+input[type=search] { flex: 1; min-width: 160px; background: var(--panel); color: var(--text);
+  border: 1px solid var(--border); border-radius: 4px; padding: 4px 8px; font: inherit; }
+table { width: 100%; border-collapse: collapse; table-layout: fixed; }
+th { text-align: left; font-weight: 600; color: var(--muted); border-bottom: 1px solid var(--border);
+  padding: 4px 6px; position: sticky; top: 0; background: var(--bg); }
+td { padding: 6px; border-bottom: 1px solid var(--border); vertical-align: top; overflow-wrap: anywhere;
+  user-select: text; }
+tr:nth-child(even) td { background: var(--row-alt); }
+tr:nth-child(odd) td { background: var(--row); }
+th.sev, td.sev { width: 82px; } th.rule, td.rule { width: 150px; } th.actions, td.actions { width: 70px; }
+button { white-space: nowrap; }
+.badge { display: inline-block; padding: 1px 6px; border-radius: 3px; font-size: 11px; font-weight: 600; color: #fff; }
+.badge.critical { background: var(--critical); } .badge.warning { background: var(--warning); color: #1f2328; }
+.badge.info { background: var(--info); }
+.finding-title { font-weight: 600; }
+.objects { margin-top: 2px; }
+.description { margin-top: 3px; color: var(--muted); }
+.rule code { font-size: 11px; color: var(--muted); }
+#notices div { padding: 4px 8px; margin: 4px 0; border-left: 3px solid var(--warning); background: var(--panel); }
+#empty { padding: 16px 6px; }
+#toast { position: fixed; right: 12px; bottom: 12px; background: var(--accent); color: #fff; padding: 4px 10px;
+  border-radius: 4px; opacity: 0; transition: opacity .2s; pointer-events: none; }
+#toast.show { opacity: 1; }
+</style>
+</head>
+<body>
+<header>
+  <div class="title"><span id="doc"></span><span id="meta" class="muted"></span></div>
+  <div id="model" class="muted small"></div>
+</header>
+<div class="toolbar">
+  <div id="severity-filters"></div>
+  <input id="search" type="search" placeholder="Filter findings, objects, rules…">
+  <button id="copy-all" title="Copy the visible findings as tab-separated text (pastes into Excel, Sheets, issues)">Copy all (TSV)</button>
+</div>
+<div id="notices"></div>
+<table>
+  <thead><tr><th class="sev">Severity</th><th>Finding</th><th class="rule">Rule</th><th class="actions"></th></tr></thead>
+  <tbody id="rows"></tbody>
+</table>
+<div id="empty" class="muted"></div>
+<div id="loading" class="muted">Waiting for analysis results…</div>
+<div id="toast"></div>
+<script>
+(function () {
+  var SEVERITIES = ["critical", "warning", "info"];
+  var LABELS = { critical: "Critical", warning: "Warning", info: "Info" };
+  var DATA = null, result = null, summary = null, findings = [];
+  var active = { critical: true, warning: true, info: true };
+
+  function el(tag, cls, text) {
+    var e = document.createElement(tag);
+    if (cls) e.className = cls;
+    if (text !== undefined) e.textContent = text;
+    return e;
+  }
+
+  function duration(ms) { return ms < 1000 ? ms + " ms" : (ms / 1000).toFixed(2) + " s"; }
+
+  function renderHeader() {
+    document.getElementById("doc").textContent = summary.documentName;
+    document.getElementById("meta").textContent =
+      summary.designType + ", " + summary.designIntent + " · analyzed in " + duration(DATA.elapsedMs);
+    document.getElementById("model").textContent = [
+      summary.componentCount + " components (+" + summary.externalComponentCount + " external, not inspected)",
+      summary.occurrenceCount + " occurrences",
+      summary.bodyCount + " bodies",
+      summary.sketchCount + " sketches",
+      summary.featureCount + " features",
+      (summary.timelineItemCount === null ? "no timeline" : summary.timelineItemCount + " timeline items"),
+      summary.userParameterCount + " user parameters",
+      summary.modelParameterCount + " model parameters"
+    ].join(" · ");
+
+    var notices = document.getElementById("notices");
+    if (summary.issueCount > 0) {
+      notices.appendChild(el("div", "", summary.issueCount + " element(s) could not be inspected; see the TEXT COMMAND window."));
+    }
+    if (result.ruleFailures.length > 0) {
+      notices.appendChild(el("div", "", result.ruleFailures.length + " rule(s) failed to run: " +
+        result.ruleFailures.map(function (f) { return f.ruleId; }).join(", ")));
+    }
+  }
+
+  function renderFilters() {
+    var box = document.getElementById("severity-filters");
+    SEVERITIES.forEach(function (sev) {
+      var count = findings.filter(function (f) { return f.severity === sev; }).length;
+      var b = el("button", "on", LABELS[sev] + " " + count);
+      b.title = "Show or hide " + LABELS[sev].toLowerCase() + " findings";
+      b.onclick = function () {
+        active[sev] = !active[sev];
+        b.className = active[sev] ? "on" : "";
+        renderRows();
+      };
+      box.appendChild(b);
+    });
+  }
+
+  function visibleFindings() {
+    var q = document.getElementById("search").value.trim().toLowerCase();
+    return findings.filter(function (f) {
+      if (!active[f.severity]) return false;
+      if (!q) return true;
+      var hay = [f.title, f.description, f.ruleId, f.category].concat(f.affectedObjects).join(" ").toLowerCase();
+      return hay.indexOf(q) !== -1;
+    });
+  }
+
+  function findingText(f) {
+    return "[" + LABELS[f.severity] + "] " + f.title + "\n" +
+      "Objects: " + f.affectedObjects.join(", ") + "\n" +
+      f.description + "\n" +
+      "Rule: " + f.ruleId;
+  }
+
+  function tsvCell(s) { return String(s).replace(/[\t\r\n]+/g, " "); }
+
+  function renderRows() {
+    var tbody = document.getElementById("rows");
+    tbody.textContent = "";
+    var list = visibleFindings();
+    list.forEach(function (f) {
+      var tr = el("tr");
+      var sev = el("td", "sev");
+      sev.appendChild(el("span", "badge " + f.severity, LABELS[f.severity]));
+      tr.appendChild(sev);
+
+      var main = el("td");
+      main.appendChild(el("div", "finding-title", f.title));
+      main.appendChild(el("div", "objects", f.affectedObjects.join(", ")));
+      main.appendChild(el("div", "description", f.description));
+      tr.appendChild(main);
+
+      var rule = el("td", "rule");
+      rule.appendChild(el("code", "", f.ruleId));
+      tr.appendChild(rule);
+
+      var actions = el("td", "actions");
+      var copy = el("button", "", "Copy");
+      copy.title = "Copy this finding";
+      copy.onclick = function () { copyText(findingText(f)); };
+      actions.appendChild(copy);
+      tr.appendChild(actions);
+
+      tbody.appendChild(tr);
+    });
+    var empty = document.getElementById("empty");
+    empty.textContent = findings.length === 0 ? "No findings." :
+      (list.length === 0 ? "No findings match the current filters." : "");
+  }
+
+  function copyAll() {
+    var header = ["Severity", "Category", "Rule", "Finding", "Affected objects", "Description"].join("\t");
+    var lines = visibleFindings().map(function (f) {
+      return [LABELS[f.severity], f.category, f.ruleId, f.title, f.affectedObjects.join(", "), f.description]
+        .map(tsvCell).join("\t");
+    });
+    copyText([header].concat(lines).join("\n"));
+  }
+
+  function copyText(text) {
+    var done = function () { toast("Copied"); };
+    var fallback = function () {
+      var ta = document.createElement("textarea");
+      ta.value = text;
+      ta.style.position = "fixed";
+      ta.style.opacity = "0";
+      document.body.appendChild(ta);
+      ta.select();
+      var ok = false;
+      try { ok = document.execCommand("copy"); } catch (e) { ok = false; }
+      document.body.removeChild(ta);
+      toast(ok ? "Copied" : "Copy failed; select the text and press Ctrl/Cmd+C");
+    };
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(text).then(done, fallback);
+    } else {
+      fallback();
+    }
+  }
+
+  var toastTimer = null;
+  function toast(message) {
+    var t = document.getElementById("toast");
+    t.textContent = message;
+    t.className = "show";
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(function () { t.className = ""; }, 1600);
+  }
+
+  function show(data) {
+    DATA = data; result = data.result; summary = result.summary; findings = result.findings;
+    document.getElementById("notices").textContent = "";
+    document.getElementById("severity-filters").textContent = "";
+    active = { critical: true, warning: true, info: true };
+    renderHeader();
+    renderFilters();
+    renderRows();
+    document.getElementById("loading").style.display = "none";
+  }
+
+  // Fusion -> page: palette.sendInfoToHTML(action, data). Must return a non-empty string.
+  window.fusionJavaScriptHandler = {
+    handle: function (action, data) {
+      try {
+        if (action === "results") show(JSON.parse(data));
+        return "OK";
+      } catch (e) {
+        return "ERROR: " + e;
+      }
+    }
+  };
+
+  document.getElementById("search").oninput = renderRows;
+  document.getElementById("copy-all").onclick = copyAll;
+
+  // Page -> Fusion: ask for the latest results once Fusion's adsk bridge is available.
+  var attempts = 0;
+  (function requestResults() {
+    if (window.adsk && typeof window.adsk.fusionSendData === "function") {
+      window.adsk.fusionSendData("ready", "");
+    } else if (attempts++ < 100) {
+      setTimeout(requestResults, 50);
+    } else {
+      document.getElementById("loading").textContent = "Could not connect to Fusion.";
+    }
+  })();
+})();
+</script>
+</body>
+</html>

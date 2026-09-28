@@ -16,6 +16,7 @@ import { log, reportFailure } from "../utils/logging";
 import { formatTimings, timed, Timing } from "../utils/performance";
 import { ALL_RULES } from "../rules/ruleRegistry";
 import { formatAnalysisReport, formatFindingForLog } from "./analysisReport";
+import { deleteFindingsPalette, showFindingsPalette } from "./findingsPalette";
 
 // Keep handler objects referenced for the add-in's lifetime.
 const handlers: object[] = [];
@@ -46,6 +47,7 @@ export function unregisterCommands(ui: adsk.core.UserInterface): void {
     const panel = ui.workspaces.itemById(DESIGN_WORKSPACE_ID)?.toolbarPanels.itemById(ADDINS_PANEL_ID);
     panel?.controls.itemById(ANALYZE_COMMAND_ID)?.deleteMe();
     ui.commandDefinitions.itemById(ANALYZE_COMMAND_ID)?.deleteMe();
+    deleteFindingsPalette(ui);
 }
 
 function onCommandCreated(args: adsk.core.CommandCreatedEventArgs): void {
@@ -104,7 +106,13 @@ function onExecute(_args: adsk.core.CommandEventArgs): void {
         for (const failure of result.ruleFailures) {
             log(`Rule ${failure.ruleId} failed: ${failure.message}`);
         }
-        ui.messageBox(formatAnalysisReport(result, elapsedMs), PRODUCT_NAME);
+        try {
+            showFindingsPalette(ui, { result, elapsedMs });
+        } catch (err) {
+            // Fall back to the plain-text report so results are never lost.
+            reportFailure("Showing the findings palette", err);
+            ui.messageBox(formatAnalysisReport(result, elapsedMs), PRODUCT_NAME);
+        }
     } catch (err) {
         reportFailure("Analyze Design", err);
     }

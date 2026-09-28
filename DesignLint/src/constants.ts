@@ -9,6 +9,13 @@ export const ANALYZE_COMMAND_NAME = "Analyze Design";
 export const ANALYZE_COMMAND_TOOLTIP =
     "Analyze the active design for CAD quality and parametric robustness issues.";
 
+// Findings palette.
+export const FINDINGS_PALETTE_ID = "designLintFindingsPalette";
+export const FINDINGS_PALETTE_NAME = "DesignLint";
+export const FINDINGS_PALETTE_SIZE = { width: 860, height: 620 } as const;
+/** Relative to the add-in folder: Fusion's TypeScript runtime resolves paths against the add-in root. */
+export const FINDINGS_PALETTE_HTML = "resources/findings.html";
+
 // Fusion UI locations (IDs from the Fusion API User Interface manual).
 export const DESIGN_WORKSPACE_ID = "FusionSolidEnvironment";
 export const ADDINS_PANEL_ID = "SolidScriptsAddinsPanel";
@@ -95,8 +102,11 @@ export const DEFAULT_NAME_BASES = {
     sketch: ["sketch"],
     body: ["body"],
     component: ["component"],
-    /** Extra bases for timeline items whose default name differs from their type. */
-    timelineItem: ["plane", "axis", "point"],
+    /**
+     * Extra bases for timeline items whose default name differs from their type: construction geometry,
+     * and joints, which Fusion names after their motion type ("Rigid 33", "Revolute2").
+     */
+    timelineItem: ["plane", "axis", "point", "rigid", "revolute", "slider", "cylindrical", "pinslot", "planar", "ball"],
 } as const;
 
 /** Suffix stripped from a timeline item's type to get its default-name base. */
