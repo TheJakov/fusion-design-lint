@@ -1,0 +1,13 @@
+{
+	"autodeskProduct": "Fusion",
+	"type": "addin",
+	"id": "3f6c2b8e-9a41-4d7e-8c52-1e0b7d4a9f63",
+	"author": "Jakov Kristovic",
+	"description": {
+		"": "DesignLint - CAD quality & parametric design analysis for Autodesk Fusion"
+	},
+	"version": "0.1.0",
+	"runOnStartup": false,
+	"supportedOS": "windows|mac",
+	"editEnabled": true
+}
