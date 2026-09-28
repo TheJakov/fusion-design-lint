@@ -40,8 +40,8 @@ export function extractDesignModel(design: adsk.fusion.Design, documentName: str
             return fn();
         } catch (err) {
             const message = errorMessage(err);
+            // Logged once per distinct message at the end (logIssueSummary).
             issues.push({ location, message });
-            log(`Could not inspect ${location}: ${message}. Continuing analysis...`);
             return fallback;
         }
     };
@@ -171,7 +171,7 @@ function logIssueSummary(issues: ExtractionIssue[]): void {
     if (issues.length === 0) {
         return;
     }
-    log(`${issues.length} element(s) could not be inspected:`);
+    log(`${issues.length} element(s) could not be inspected; analysis continued with the rest of the design:`);
     for (const group of groupIssues(issues)) {
         const more = group.count > group.examples.length ? `; +${group.count - group.examples.length} more` : "";
         log(`  ${group.count}× "${group.message}" (${group.examples.join("; ")}${more})`);

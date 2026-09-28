@@ -1,11 +1,11 @@
-// Pure: formats an AnalysisResult as plain text.
-// The message box is temporary until the findings UI (Step 5).
+// Pure: formats an AnalysisResult as plain text for the message box shown when the findings
+// palette can't be created (fallback only).
 
 import { PRODUCT_NAME } from "../constants";
 import { AnalysisResult } from "../models/AnalysisResult";
 import { Finding, Severity } from "../models/Finding";
 
-/** Keeps the message box readable; the full lists go to the log. */
+/** Keeps the fallback message box readable. */
 const MAX_FINDINGS_IN_DIALOG = 10;
 const MAX_OBJECTS_PER_FINDING_IN_DIALOG = 5;
 
@@ -43,7 +43,7 @@ export function formatAnalysisReport(result: AnalysisResult, elapsedMs: number):
             lines.push(formatFindingLine(finding));
         }
         if (findings.length > MAX_FINDINGS_IN_DIALOG) {
-            lines.push(`…and ${findings.length - MAX_FINDINGS_IN_DIALOG} more; see the TEXT COMMAND window.`);
+            lines.push(`…and ${findings.length - MAX_FINDINGS_IN_DIALOG} more (the findings palette could not be opened to show all).`);
         }
     }
 
@@ -55,11 +55,6 @@ export function formatAnalysisReport(result: AnalysisResult, elapsedMs: number):
         lines.push(`${result.ruleFailures.length} rule(s) failed to run; see the TEXT COMMAND window.`);
     }
     return lines.join("\n");
-}
-
-/** One line per finding, with the full description, for the log. */
-export function formatFindingForLog(finding: Finding): string {
-    return `${formatFindingLine(finding, Infinity)} [${finding.ruleId}] ${finding.description}`;
 }
 
 function formatFindingLine(finding: Finding, maxObjects = MAX_OBJECTS_PER_FINDING_IN_DIALOG): string {

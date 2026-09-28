@@ -12,10 +12,11 @@ import {
     OBJECT_TYPES,
     PRODUCT_NAME,
 } from "../constants";
+import { Severity } from "../models/Finding";
 import { log, reportFailure } from "../utils/logging";
 import { formatTimings, timed, Timing } from "../utils/performance";
 import { ALL_RULES } from "../rules/ruleRegistry";
-import { formatAnalysisReport, formatFindingForLog } from "./analysisReport";
+import { formatAnalysisReport } from "./analysisReport";
 import { deleteFindingsPalette, showFindingsPalette } from "./findingsPalette";
 
 // Keep handler objects referenced for the add-in's lifetime.
@@ -82,27 +83,12 @@ function onExecute(_args: adsk.core.CommandEventArgs): void {
         const result = timed("rules", timings, () => analyzeModel(model, ALL_RULES));
         const elapsedMs = Date.now() - start;
 
-        log(`Analysis of "${doc.name}" complete in ${elapsedMs} ms (${formatTimings(timings)}).`);
-        log(`Summary: ${JSON.stringify(result.summary)}`);
-        const hardCoded = model.modelParameters.filter((p) => p.isHardCoded).length;
+        // Diagnostics only; the findings themselves are shown in the palette.
+        const count = (severity: Severity) => result.findings.filter((f) => f.severity === severity).length;
         log(
-            `Parameters: ${model.modelParameters.length} numeric model parameter(s) in local components, ` +
-                `${hardCoded} hard-coded, ${model.modelParameters.length - hardCoded} referencing other parameters.`,
+            `Analysis of "${doc.name}" complete in ${elapsedMs} ms (${formatTimings(timings)}): ` +
+                `${count("critical")} critical, ${count("warning")} warning, ${count("info")} info.`,
         );
-        if (model.timelineItemCount !== null) {
-            const byHealth = new Map<string, number>();
-            for (const item of model.timelineItems) {
-                byHealth.set(item.healthState, (byHealth.get(item.healthState) ?? 0) + 1);
-            }
-            const health = [...byHealth].map(([state, count]) => `${state} ${count}`).join(", ");
-            log(
-                `Timeline: ${model.timelineItemCount} top-level row(s), ${model.timelineItems.length} item(s) ` +
-                    `inspected including group contents (${health || "none"}).`,
-            );
-        }
-        for (const finding of result.findings) {
-            log(formatFindingForLog(finding));
-        }
         for (const failure of result.ruleFailures) {
             log(`Rule ${failure.ruleId} failed: ${failure.message}`);
         }
