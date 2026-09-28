@@ -2,7 +2,7 @@
 
 import { adsk } from "@adsk/fusion";
 import { extractDesignModel } from "../analyzer/modelExtractor";
-import { summarizeModel } from "../analyzer/modelSummary";
+import { analyzeModel } from "../analyzer/analysisEngine";
 import {
     ADDINS_PANEL_ID,
     ANALYZE_COMMAND_ID,
@@ -14,7 +14,8 @@ import {
 } from "../constants";
 import { log, reportFailure } from "../utils/logging";
 import { formatTimings, timed, Timing } from "../utils/performance";
-import { formatSummaryReport } from "./summaryReport";
+import { ALL_RULES } from "../rules/ruleRegistry";
+import { formatAnalysisReport, formatFindingForLog } from "./analysisReport";
 
 // Keep handler objects referenced for the add-in's lifetime.
 const handlers: object[] = [];
@@ -76,12 +77,18 @@ function onExecute(_args: adsk.core.CommandEventArgs): void {
         const timings: Timing[] = [];
         const start = Date.now();
         const model = timed("extraction", timings, () => extractDesignModel(design, doc.name));
-        const summary = timed("summary", timings, () => summarizeModel(model));
+        const result = timed("rules", timings, () => analyzeModel(model, ALL_RULES));
         const elapsedMs = Date.now() - start;
 
         log(`Analysis of "${doc.name}" complete in ${elapsedMs} ms (${formatTimings(timings)}).`);
-        log(`Summary: ${JSON.stringify(summary)}`);
-        ui.messageBox(formatSummaryReport(summary, elapsedMs), PRODUCT_NAME);
+        log(`Summary: ${JSON.stringify(result.summary)}`);
+        for (const finding of result.findings) {
+            log(formatFindingForLog(finding));
+        }
+        for (const failure of result.ruleFailures) {
+            log(`Rule ${failure.ruleId} failed: ${failure.message}`);
+        }
+        ui.messageBox(formatAnalysisReport(result, elapsedMs), PRODUCT_NAME);
     } catch (err) {
         reportFailure("Analyze Design", err);
     }

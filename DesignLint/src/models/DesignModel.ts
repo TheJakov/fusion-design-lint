@@ -3,6 +3,8 @@
 
 export type DesignTypeName = "parametric" | "direct" | "unknown";
 export type DesignIntentName = "part" | "assembly" | "hybrid" | "unknown";
+/** Mirrors Fusion's FeatureHealthStates. */
+export type HealthState = "healthy" | "warning" | "error" | "suppressed" | "rolledBack" | "unknown";
 
 export interface ComponentInfo {
     name: string;
@@ -22,9 +24,30 @@ export interface BodyInfo {
     isVisible: boolean;
 }
 
+export interface EntityCount {
+    total: number;
+    unconstrained: number;
+}
+
+export interface UnconstrainedEntityCounts {
+    curves: EntityCount;
+    points: EntityCount;
+    texts: EntityCount;
+}
+
 export interface SketchInfo {
     name: string;
     componentName: string;
+    /** Null if Fusion could not report it. */
+    isFullyConstrained: boolean | null;
+    /**
+     * Per-entity constraint detail, only collected when the sketch is not fully constrained (null otherwise).
+     * Fusion exposes no degree-of-freedom count; SketchEntity.isFullyConstrained is the closest detail.
+     */
+    unconstrainedEntities: UnconstrainedEntityCounts | null;
+    healthState: HealthState;
+    /** Fusion's message when healthState is "warning" or "error"; otherwise empty. */
+    healthMessage: string;
 }
 
 export interface UserParameterInfo {

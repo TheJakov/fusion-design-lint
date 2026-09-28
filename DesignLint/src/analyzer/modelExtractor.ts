@@ -3,15 +3,18 @@
 // extraction continues with the rest of the design.
 
 import { adsk } from "@adsk/fusion";
-import { DESIGN_INTENT_TYPES, DESIGN_TYPES } from "../constants";
+import { DESIGN_INTENT_TYPES, DESIGN_TYPES, FEATURE_HEALTH_STATES } from "../constants";
 import {
     BodyInfo,
     ComponentInfo,
     DesignIntentName,
     DesignModel,
     DesignTypeName,
+    EntityCount,
     ExtractionIssue,
+    HealthState,
     SketchInfo,
+    UnconstrainedEntityCounts,
     UserParameterInfo,
 } from "../models/DesignModel";
 import { errorMessage, log } from "../utils/logging";
@@ -178,16 +181,9 @@ function extractComponent(
     const sketchCollection = attempt(`sketches of ${name}`, () => component.sketches, null);
     const sketchCount = sketchCollection ? attempt(`sketch count of ${name}`, () => sketchCollection.count, 0) : 0;
     for (let i = 0; i < sketchCount; i++) {
-        const sketch = attempt(
-            `sketch #${i} of ${name}`,
-            () => {
-                const s = sketchCollection!.item(i);
-                return s ? { name: s.name, componentName: name } : null;
-            },
-            null,
-        );
+        const sketch = attempt(`sketch #${i} of ${name}`, () => sketchCollection!.item(i), null);
         if (sketch) {
-            sketches.push(sketch);
+            sketches.push(extractSketch(sketch, name, attempt));
         }
     }
 
@@ -200,6 +196,47 @@ function extractComponent(
         featureCount: attempt(`features of ${name}`, () => component.features.count, 0),
         modelParameterCount: attempt(`model parameters of ${name}`, () => component.modelParameters.count, 0),
     };
+}
+
+function extractSketch(sketch: adsk.fusion.Sketch, componentName: string, attempt: Attempt): SketchInfo {
+    const name = attempt(`sketch name in ${componentName}`, () => sketch.name, "(unnamed sketch)");
+    const where = `sketch ${name} (${componentName})`;
+    const isFullyConstrained = attempt(`constraint status of ${where}`, () => sketch.isFullyConstrained, null);
+    const unconstrainedEntities =
+        isFullyConstrained === false
+            ? attempt(`entities of ${where}`, () => countUnconstrainedEntities(sketch), null)
+            : null;
+    return {
+        name,
+        componentName,
+        isFullyConstrained,
+        unconstrainedEntities,
+        healthState: attempt(`health of ${where}`, () => toHealthState(sketch.healthState), "unknown"),
+        healthMessage: attempt(`health message of ${where}`, () => sketch.errorOrWarningMessage ?? "", ""),
+    };
+}
+
+function countUnconstrainedEntities(sketch: adsk.fusion.Sketch): UnconstrainedEntityCounts {
+    return {
+        curves: countUnconstrained(sketch.sketchCurves),
+        points: countUnconstrained(sketch.sketchPoints),
+        texts: countUnconstrained(sketch.sketchTexts),
+    };
+}
+
+function countUnconstrained(collection: {
+    count: number;
+    item(index: number): adsk.fusion.SketchEntity | null;
+}): EntityCount {
+    const total = collection.count;
+    let unconstrained = 0;
+    for (let i = 0; i < total; i++) {
+        const entity = collection.item(i);
+        if (entity && !entity.isFullyConstrained) {
+            unconstrained++;
+        }
+    }
+    return { total, unconstrained };
 }
 
 function extractUserParameters(design: adsk.fusion.Design, attempt: Attempt): UserParameterInfo[] {
@@ -241,6 +278,23 @@ function toDesignIntentName(value: number): DesignIntentName {
             return "assembly";
         case DESIGN_INTENT_TYPES.hybrid:
             return "hybrid";
+        default:
+            return "unknown";
+    }
+}
+
+function toHealthState(value: number): HealthState {
+    switch (value) {
+        case FEATURE_HEALTH_STATES.healthy:
+            return "healthy";
+        case FEATURE_HEALTH_STATES.warning:
+            return "warning";
+        case FEATURE_HEALTH_STATES.error:
+            return "error";
+        case FEATURE_HEALTH_STATES.suppressed:
+            return "suppressed";
+        case FEATURE_HEALTH_STATES.rolledBack:
+            return "rolledBack";
         default:
             return "unknown";
     }

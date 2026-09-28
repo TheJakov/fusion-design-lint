@@ -31,3 +31,18 @@ export const DESIGN_INTENT_TYPES = {
     assembly: 1,
     hybrid: 2,
 } as const;
+
+export const FEATURE_HEALTH_STATES = {
+    healthy: 0,
+    warning: 1,
+    error: 2,
+    suppressed: 3,
+    rolledBack: 4,
+    unknown: 5,
+} as const;
+
+// Rule IDs. Stable: used in findings, logs and (later) user configuration.
+export const RULE_IDS = {
+    sketchUnderConstrained: "sketch-under-constrained",
+    sketchHealth: "sketch-health",
+} as const;
