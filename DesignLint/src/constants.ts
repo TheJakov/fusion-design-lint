@@ -40,6 +40,11 @@ export const DESIGN_INTENT_TYPES = {
     hybrid: 2,
 } as const;
 
+export const PARAMETER_VALUE_TYPES = {
+    numeric: 0,
+    text: 1,
+} as const;
+
 export const FEATURE_HEALTH_STATES = {
     healthy: 0,
     warning: 1,
@@ -55,7 +60,31 @@ export const RULE_IDS = {
     sketchHealth: "sketch-health",
     timelineHealth: "timeline-health",
     defaultNames: "default-names",
+    repeatedValues: "repeated-values",
 } as const;
+
+// Repeated hard-coded values (rule "repeated-values").
+export const REPEATED_VALUES = {
+    /** Report a value when it appears in at least this many distinct owners (features, sketches, ...). */
+    minOwners: 3,
+    /** Values are compared after rounding to this many significant digits (internal units: cm, radians). */
+    significantDigits: 10,
+} as const;
+
+/**
+ * Unit strings grouped by physical kind, so "2.5 mm" and "0.25 cm" compare equal (Fusion stores both
+ * as 0.25 cm internally). Parameters whose unit is not listed are grouped by the unit string itself;
+ * unitless parameters (counts, ratios) are ignored.
+ */
+export const UNIT_KINDS: Record<string, string> = {
+    mm: "length",
+    cm: "length",
+    m: "length",
+    in: "length",
+    ft: "length",
+    deg: "angle",
+    rad: "angle",
+};
 
 // Default-name detection (rule "default-names").
 // A name is "default" when, after normalization (lower case, trailing " (n)" copy suffix removed,

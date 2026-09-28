@@ -68,6 +68,28 @@ export interface UserParameterInfo {
     name: string;
     expression: string;
     unit: string;
+    /** Value in Fusion internal units (cm, radians); null for text parameters. */
+    value: number | null;
+}
+
+/** A numeric model parameter: a value Fusion stores for a feature, sketch dimension, plane, joint, ... */
+export interface ModelParameterInfo {
+    name: string;
+    componentName: string;
+    /** What the value is for, e.g. "Depth", "Offset". */
+    role: string;
+    /** The object that created it, e.g. "Extrude3" or "Sketch2" (for a sketch dimension). */
+    ownerName: string;
+    /** Owner type without namespace, e.g. "ExtrudeFeature", "SketchLinearDimension". */
+    ownerType: string;
+    expression: string;
+    unit: string;
+    /** Value in Fusion internal units (cm, radians). */
+    value: number;
+    /** Value formatted by Fusion in the parameter's unit, e.g. "2.50 mm". */
+    displayValue: string;
+    /** True when the expression references no other parameter. */
+    isHardCoded: boolean;
 }
 
 /** Something that could not be inspected. Extraction continues past these. */
@@ -88,6 +110,8 @@ export interface DesignModel {
     bodies: BodyInfo[];
     sketches: SketchInfo[];
     userParameters: UserParameterInfo[];
+    /** Numeric model parameters of local components (external components are not inspected). */
+    modelParameters: ModelParameterInfo[];
     /** Null when the design has no timeline (direct modeling). */
     timelineItemCount: number | null;
     /** All timeline items, including those inside groups. Empty for direct modeling. */

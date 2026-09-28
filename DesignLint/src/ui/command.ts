@@ -82,6 +82,11 @@ function onExecute(_args: adsk.core.CommandEventArgs): void {
 
         log(`Analysis of "${doc.name}" complete in ${elapsedMs} ms (${formatTimings(timings)}).`);
         log(`Summary: ${JSON.stringify(result.summary)}`);
+        const hardCoded = model.modelParameters.filter((p) => p.isHardCoded).length;
+        log(
+            `Parameters: ${model.modelParameters.length} numeric model parameter(s) in local components, ` +
+                `${hardCoded} hard-coded, ${model.modelParameters.length - hardCoded} referencing other parameters.`,
+        );
         if (model.timelineItemCount !== null) {
             const byHealth = new Map<string, number>();
             for (const item of model.timelineItems) {

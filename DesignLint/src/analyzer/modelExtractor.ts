@@ -3,7 +3,13 @@
 // extraction continues with the rest of the design.
 
 import { adsk } from "@adsk/fusion";
-import { CONSTRUCTION_TYPE_PREFIX, DESIGN_INTENT_TYPES, DESIGN_TYPES, FEATURE_HEALTH_STATES } from "../constants";
+import {
+    CONSTRUCTION_TYPE_PREFIX,
+    DESIGN_INTENT_TYPES,
+    DESIGN_TYPES,
+    FEATURE_HEALTH_STATES,
+    PARAMETER_VALUE_TYPES,
+} from "../constants";
 import {
     BodyInfo,
     ComponentInfo,
@@ -13,6 +19,7 @@ import {
     EntityCount,
     ExtractionIssue,
     HealthState,
+    ModelParameterInfo,
     SketchInfo,
     TimelineItemInfo,
     UnconstrainedEntityCounts,
@@ -21,6 +28,8 @@ import {
 import { errorMessage, log } from "../utils/logging";
 
 type Attempt = <T>(location: string, fn: () => T, fallback: T) => T;
+/** Formats a value in internal units (cm, radians) for display in the given unit. */
+type FormatValue = (value: number, unit: string) => string;
 
 export function extractDesignModel(design: adsk.fusion.Design, documentName: string): DesignModel {
     const issues: ExtractionIssue[] = [];
@@ -44,6 +53,19 @@ export function extractDesignModel(design: adsk.fusion.Design, documentName: str
     const root = attempt("root component", () => design.rootComponent, null);
     const { occurrenceCount, externalComponents } = scanOccurrences(root, attempt);
 
+    const unitsManager = attempt("units manager", () => design.fusionUnitsManager, null);
+    const formatValue: FormatValue = (value, unit) => {
+        if (unitsManager && unit) {
+            try {
+                return unitsManager.formatInternalValue(value, unit, true);
+            } catch {
+                // Fall through to the raw value; formatting is display-only.
+            }
+        }
+        return unit ? `${value} (internal units)` : String(value);
+    };
+    const modelParameters: ModelParameterInfo[] = [];
+
     const allComponents = attempt("components", () => design.allComponents, null);
     const componentCount = allComponents ? attempt("component count", () => allComponents.count, 0) : 0;
     for (let i = 0; i < componentCount; i++) {
@@ -54,11 +76,14 @@ export function extractDesignModel(design: adsk.fusion.Design, documentName: str
         if (externalComponents.has(component)) {
             components.push(describeExternalComponent(component, attempt));
         } else {
-            components.push(extractComponent(component, component === root, bodies, sketches, attempt));
+            components.push(
+                extractComponent(component, component === root, bodies, sketches, modelParameters, formatValue, attempt),
+            );
         }
     }
 
     const userParameters = extractUserParameters(design, attempt);
+
 
     // Direct-modeling designs have no timeline.
     const timeline = designType === "direct" ? null : attempt("timeline", () => design.timeline ?? null, null);
@@ -76,6 +101,7 @@ export function extractDesignModel(design: adsk.fusion.Design, documentName: str
         bodies,
         sketches,
         userParameters,
+        modelParameters,
         timelineItemCount,
         timelineItems,
         issues,
@@ -161,6 +187,8 @@ function extractComponent(
     isRoot: boolean,
     bodies: BodyInfo[],
     sketches: SketchInfo[],
+    modelParameters: ModelParameterInfo[],
+    formatValue: FormatValue,
     attempt: Attempt,
 ): ComponentInfo {
     const name = attempt("component name", () => component.name, "(unnamed component)");
@@ -197,8 +225,66 @@ function extractComponent(
         bodyCount,
         sketchCount,
         featureCount: attempt(`features of ${name}`, () => component.features.count, 0),
-        modelParameterCount: attempt(`model parameters of ${name}`, () => component.modelParameters.count, 0),
+        modelParameterCount: extractModelParameters(component, name, modelParameters, formatValue, attempt),
     };
+}
+
+/** Appends the component's numeric model parameters; returns the total parameter count. */
+function extractModelParameters(
+    component: adsk.fusion.Component,
+    componentName: string,
+    out: ModelParameterInfo[],
+    formatValue: FormatValue,
+    attempt: Attempt,
+): number {
+    const params = attempt(`model parameters of ${componentName}`, () => component.modelParameters, null);
+    const count = params ? attempt(`model parameter count of ${componentName}`, () => params.count, 0) : 0;
+    for (let i = 0; i < count; i++) {
+        const info = attempt(
+            `model parameter #${i} of ${componentName}`,
+            () => {
+                const p = params!.item(i);
+                if (!p || p.valueType !== PARAMETER_VALUE_TYPES.numeric) {
+                    return null;
+                }
+                const owner = describeParameterOwner(p.createdBy);
+                return {
+                    name: p.name,
+                    componentName,
+                    role: p.role,
+                    ownerName: owner.name,
+                    ownerType: owner.type,
+                    expression: p.expression,
+                    unit: p.unit,
+                    value: p.value,
+                    displayValue: formatValue(p.value, p.unit),
+                    isHardCoded: p.dependencyParameters.count === 0,
+                };
+            },
+            null,
+        );
+        if (info) {
+            out.push(info);
+        }
+    }
+    return count;
+}
+
+/**
+ * ModelParameter.createdBy is a feature, sketch dimension, construction plane, joint, ...
+ * Sketch dimensions are reported by their sketch (SketchDimension.parentSketch); everything else
+ * by its own name.
+ */
+function describeParameterOwner(createdBy: adsk.core.Base | null): { name: string; type: string } {
+    const type = shortObjectType(createdBy) ?? "Unknown";
+    if (!createdBy) {
+        return { name: "(unknown owner)", type };
+    }
+    const owner = createdBy as { parentSketch?: adsk.fusion.Sketch | null; name?: string };
+    if (type.endsWith("Dimension") && owner.parentSketch) {
+        return { name: owner.parentSketch.name, type };
+    }
+    return { name: typeof owner.name === "string" ? owner.name : `(${type})`, type };
 }
 
 function extractSketch(sketch: adsk.fusion.Sketch, componentName: string, attempt: Attempt): SketchInfo {
@@ -325,7 +411,11 @@ function extractUserParameters(design: adsk.fusion.Design, attempt: Attempt): Us
             `user parameter #${i}`,
             () => {
                 const p = params!.item(i);
-                return p ? { name: p.name, expression: p.expression, unit: p.unit } : null;
+                if (!p) {
+                    return null;
+                }
+                const isNumeric = p.valueType === PARAMETER_VALUE_TYPES.numeric;
+                return { name: p.name, expression: p.expression, unit: p.unit, value: isNumeric ? p.value : null };
             },
             null,
         );
