@@ -82,6 +82,17 @@ function onExecute(_args: adsk.core.CommandEventArgs): void {
 
         log(`Analysis of "${doc.name}" complete in ${elapsedMs} ms (${formatTimings(timings)}).`);
         log(`Summary: ${JSON.stringify(result.summary)}`);
+        if (model.timelineItemCount !== null) {
+            const byHealth = new Map<string, number>();
+            for (const item of model.timelineItems) {
+                byHealth.set(item.healthState, (byHealth.get(item.healthState) ?? 0) + 1);
+            }
+            const health = [...byHealth].map(([state, count]) => `${state} ${count}`).join(", ");
+            log(
+                `Timeline: ${model.timelineItemCount} top-level row(s), ${model.timelineItems.length} item(s) ` +
+                    `inspected including group contents (${health || "none"}).`,
+            );
+        }
         for (const finding of result.findings) {
             log(formatFindingForLog(finding));
         }

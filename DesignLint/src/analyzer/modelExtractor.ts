@@ -14,6 +14,7 @@ import {
     ExtractionIssue,
     HealthState,
     SketchInfo,
+    TimelineItemInfo,
     UnconstrainedEntityCounts,
     UserParameterInfo,
 } from "../models/DesignModel";
@@ -60,8 +61,9 @@ export function extractDesignModel(design: adsk.fusion.Design, documentName: str
     const userParameters = extractUserParameters(design, attempt);
 
     // Direct-modeling designs have no timeline.
-    const timelineItemCount =
-        designType === "direct" ? null : attempt("timeline", () => design.timeline?.count ?? null, null);
+    const timeline = designType === "direct" ? null : attempt("timeline", () => design.timeline ?? null, null);
+    const timelineItemCount = timeline ? attempt("timeline count", () => timeline.count, null) : null;
+    const timelineItems = timeline ? extractTimelineItems(timeline, attempt) : [];
 
     logIssueSummary(issues);
 
@@ -75,6 +77,7 @@ export function extractDesignModel(design: adsk.fusion.Design, documentName: str
         sketches,
         userParameters,
         timelineItemCount,
+        timelineItems,
         issues,
     };
 }
@@ -237,6 +240,63 @@ function countUnconstrained(collection: {
         }
     }
     return { total, unconstrained };
+}
+
+/**
+ * Walks the timeline including group contents. A collapsed group's children are only reachable
+ * through the group; group rows themselves are skipped (Fusion reports Unknown health for them).
+ * `seen` guards against visiting an item twice (Fusion guarantees === identity for API objects).
+ */
+function extractTimelineItems(timeline: adsk.fusion.Timeline, attempt: Attempt): TimelineItemInfo[] {
+    const result: TimelineItemInfo[] = [];
+    const seen = new Set<adsk.fusion.TimelineObject>();
+
+    const visit = (
+        list: { count: number; item(index: number): adsk.fusion.TimelineObject | null },
+        groupName: string | null,
+    ): void => {
+        const count = attempt(`timeline items${groupName ? ` in group ${groupName}` : ""}`, () => list.count, 0);
+        for (let i = 0; i < count; i++) {
+            const obj = attempt(`timeline item #${i}${groupName ? ` in group ${groupName}` : ""}`, () => list.item(i), null);
+            if (!obj || seen.has(obj)) {
+                continue;
+            }
+            seen.add(obj);
+            if (attempt(`group flag of timeline item #${i}`, () => obj.isGroup, false)) {
+                const group = obj as adsk.fusion.TimelineGroup;
+                visit(group, attempt("timeline group name", () => group.name, "(unnamed group)"));
+                continue;
+            }
+            result.push(extractTimelineItem(obj, groupName, attempt));
+        }
+    };
+
+    visit(timeline, null);
+    return result;
+}
+
+function extractTimelineItem(
+    obj: adsk.fusion.TimelineObject,
+    groupName: string | null,
+    attempt: Attempt,
+): TimelineItemInfo {
+    const name = attempt("timeline item name", () => obj.name, "(unnamed timeline item)");
+    return {
+        name,
+        entityType: attempt(`entity of timeline item ${name}`, () => shortObjectType(obj.entity), null),
+        groupName,
+        healthState: attempt(`health of timeline item ${name}`, () => toHealthState(obj.healthState), "unknown"),
+        healthMessage: attempt(`health message of timeline item ${name}`, () => obj.errorOrWarningMessage ?? "", ""),
+    };
+}
+
+/** "adsk::fusion::ExtrudeFeature" -> "ExtrudeFeature"; null when there is no entity. */
+function shortObjectType(entity: adsk.core.Base | null): string | null {
+    if (!entity) {
+        return null;
+    }
+    const full = entity.objectType;
+    return full.slice(full.lastIndexOf("::") + 2);
 }
 
 function extractUserParameters(design: adsk.fusion.Design, attempt: Attempt): UserParameterInfo[] {

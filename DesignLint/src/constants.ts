@@ -19,6 +19,11 @@ export const OBJECT_TYPES = {
     design: "adsk::fusion::Design",
 } as const;
 
+// Short entity type names (Base.objectType without namespace) used by rules.
+export const ENTITY_TYPES = {
+    sketch: "Sketch",
+} as const;
+
 // Numeric values of Fusion `const enum`s, taken from the bundled typings (fusion.d.ts).
 // Fusion's transpiler may not inline const enums, so we don't reference them at runtime.
 export const DESIGN_TYPES = {
@@ -45,4 +50,5 @@ export const FEATURE_HEALTH_STATES = {
 export const RULE_IDS = {
     sketchUnderConstrained: "sketch-under-constrained",
     sketchHealth: "sketch-health",
+    timelineHealth: "timeline-health",
 } as const;

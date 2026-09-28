@@ -50,6 +50,18 @@ export interface SketchInfo {
     healthMessage: string;
 }
 
+/** A feature, joint, sketch, etc. in the design timeline (group rows excluded). */
+export interface TimelineItemInfo {
+    name: string;
+    /** Fusion object type without namespace, e.g. "ExtrudeFeature"; null if Fusion exposes no API entity. */
+    entityType: string | null;
+    /** Name of the timeline group containing the item, if any. */
+    groupName: string | null;
+    healthState: HealthState;
+    /** Fusion's message when healthState is "warning" or "error"; otherwise empty. */
+    healthMessage: string;
+}
+
 export interface UserParameterInfo {
     name: string;
     expression: string;
@@ -76,5 +88,7 @@ export interface DesignModel {
     userParameters: UserParameterInfo[];
     /** Null when the design has no timeline (direct modeling). */
     timelineItemCount: number | null;
+    /** All timeline items, including those inside groups. Empty for direct modeling. */
+    timelineItems: TimelineItemInfo[];
     issues: ExtractionIssue[];
 }
