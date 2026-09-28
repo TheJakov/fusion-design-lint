@@ -17,7 +17,7 @@ import { log, reportFailure } from "../utils/logging";
 import { formatTimings, timed, Timing } from "../utils/performance";
 import { ALL_RULES } from "../rules/ruleRegistry";
 import { formatAnalysisReport } from "./analysisReport";
-import { deleteFindingsPalette, showFindingsPalette } from "./findingsPalette";
+import { deleteFindingsPalette, setReanalyzeHandler, showFindingsPalette } from "./findingsPalette";
 
 // Keep handler objects referenced for the add-in's lifetime.
 const handlers: object[] = [];
@@ -29,6 +29,8 @@ export function registerCommands(ui: adsk.core.UserInterface): void {
     if (!cmdDef) {
         throw new Error(`Could not create command definition ${ANALYZE_COMMAND_ID}.`);
     }
+    setReanalyzeHandler(runAnalysis);
+
     const createdHandler = { notify: onCommandCreated };
     cmdDef.commandCreated.add(createdHandler);
     handlers.push(createdHandler);
@@ -63,43 +65,54 @@ function onCommandCreated(args: adsk.core.CommandCreatedEventArgs): void {
 
 function onExecute(_args: adsk.core.CommandEventArgs): void {
     try {
-        const app = adsk.core.Application.get()!;
-        const ui = app.userInterface!;
-        const doc = app.activeDocument;
-        if (!doc) {
-            ui.messageBox("No active document. Open a Fusion design and try again.", PRODUCT_NAME);
-            return;
-        }
-        const product = app.activeProduct;
-        if (!product || product.objectType !== OBJECT_TYPES.design) {
-            ui.messageBox(`"${doc.name}" is not a Fusion design. Switch to the Design workspace and try again.`, PRODUCT_NAME);
-            return;
-        }
-        const design = product as adsk.fusion.Design;
-
-        const timings: Timing[] = [];
-        const start = Date.now();
-        const model = timed("extraction", timings, () => extractDesignModel(design, doc.name));
-        const result = timed("rules", timings, () => analyzeModel(model, ALL_RULES));
-        const elapsedMs = Date.now() - start;
-
-        // Diagnostics only; the findings themselves are shown in the palette.
-        const count = (severity: Severity) => result.findings.filter((f) => f.severity === severity).length;
-        log(
-            `Analysis of "${doc.name}" complete in ${elapsedMs} ms (${formatTimings(timings)}): ` +
-                `${count("critical")} critical, ${count("warning")} warning, ${count("info")} info.`,
-        );
-        for (const failure of result.ruleFailures) {
-            log(`Rule ${failure.ruleId} failed: ${failure.message}`);
-        }
-        try {
-            showFindingsPalette(ui, { result, elapsedMs }, { document: doc, design });
-        } catch (err) {
-            // Fall back to the plain-text report so results are never lost.
-            reportFailure("Showing the findings palette", err);
-            ui.messageBox(formatAnalysisReport(result, elapsedMs), PRODUCT_NAME);
+        const problem = runAnalysis();
+        if (problem) {
+            adsk.core.Application.get()!.userInterface!.messageBox(problem, PRODUCT_NAME);
         }
     } catch (err) {
         reportFailure("Analyze Design", err);
     }
+}
+
+/**
+ * Analyzes the active design and shows the results in the findings palette. Shared by the toolbar
+ * command and the palette's Re-analyze button.
+ * @returns Why the analysis could not run (for the caller to show), or null when it ran.
+ */
+export function runAnalysis(): string | null {
+    const app = adsk.core.Application.get()!;
+    const ui = app.userInterface!;
+    const doc = app.activeDocument;
+    if (!doc) {
+        return "No active document. Open a Fusion design and try again.";
+    }
+    const product = app.activeProduct;
+    if (!product || product.objectType !== OBJECT_TYPES.design) {
+        return `"${doc.name}" is not a Fusion design. Switch to the Design workspace and try again.`;
+    }
+    const design = product as adsk.fusion.Design;
+
+    const timings: Timing[] = [];
+    const start = Date.now();
+    const model = timed("extraction", timings, () => extractDesignModel(design, doc.name));
+    const result = timed("rules", timings, () => analyzeModel(model, ALL_RULES));
+    const elapsedMs = Date.now() - start;
+
+    // Diagnostics only; the findings themselves are shown in the palette.
+    const count = (severity: Severity) => result.findings.filter((f) => f.severity === severity).length;
+    log(
+        `Analysis of "${doc.name}" complete in ${elapsedMs} ms (${formatTimings(timings)}): ` +
+            `${count("critical")} critical, ${count("warning")} warning, ${count("info")} info.`,
+    );
+    for (const failure of result.ruleFailures) {
+        log(`Rule ${failure.ruleId} failed: ${failure.message}`);
+    }
+    try {
+        showFindingsPalette(ui, { result, elapsedMs }, { document: doc, design });
+    } catch (err) {
+        // Fall back to the plain-text report so results are never lost.
+        reportFailure("Showing the findings palette", err);
+        ui.messageBox(formatAnalysisReport(result, elapsedMs), PRODUCT_NAME);
+    }
+    return null;
 }

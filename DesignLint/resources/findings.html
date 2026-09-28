@@ -26,6 +26,7 @@ header { margin-bottom: 8px; }
 button { background: var(--panel); color: var(--text); border: 1px solid var(--border); border-radius: 4px;
   padding: 3px 9px; font: inherit; cursor: pointer; }
 button:hover { border-color: var(--accent); }
+button:disabled { opacity: .6; cursor: default; border-color: var(--border); }
 button.on { border-color: var(--accent); box-shadow: inset 0 0 0 1px var(--accent); }
 input[type=search] { flex: 1; min-width: 160px; background: var(--panel); color: var(--text);
   border: 1px solid var(--border); border-radius: 4px; padding: 4px 8px; font: inherit; }
@@ -64,6 +65,7 @@ td.actions button { display: block; width: 100%; margin-bottom: 4px; }
 <div class="toolbar">
   <div id="severity-filters"></div>
   <input id="search" type="search" placeholder="Filter findings, objects, rules…">
+  <button id="reanalyze" title="Run the analysis again on the active design (keeps your filters)">Re-analyze</button>
   <button id="copy-all" title="Copy the visible findings as tab-separated text (pastes into Excel, Sheets, issues)">Copy all (TSV)</button>
 </div>
 <div id="notices"></div>
@@ -124,7 +126,7 @@ td.actions button { display: block; width: 100%; margin-bottom: 4px; }
     var box = document.getElementById("severity-filters");
     SEVERITIES.forEach(function (sev) {
       var count = findings.filter(function (f) { return f.severity === sev; }).length;
-      var b = el("button", "on", LABELS[sev] + " " + count);
+      var b = el("button", active[sev] ? "on" : "", LABELS[sev] + " " + count);
       b.title = "Show or hide " + LABELS[sev].toLowerCase() + " findings";
       b.onclick = function () {
         active[sev] = !active[sev];
@@ -267,11 +269,29 @@ td.actions button { display: block; width: 100%; margin-bottom: 4px; }
     DATA = data; result = data.result; summary = result.summary; findings = result.findings;
     document.getElementById("notices").textContent = "";
     document.getElementById("severity-filters").textContent = "";
-    active = { critical: true, warning: true, info: true };
+    // Severity toggles and the search text are kept, so fix-and-recheck keeps the same view.
     renderHeader();
     renderFilters();
     renderRows();
     document.getElementById("loading").style.display = "none";
+    setAnalyzing(false);
+  }
+
+  function setAnalyzing(on) {
+    var b = document.getElementById("reanalyze");
+    b.disabled = on;
+    b.textContent = on ? "Analyzing…" : "Re-analyze";
+  }
+
+  function reanalyze() {
+    if (!window.adsk || typeof window.adsk.fusionSendData !== "function") {
+      toast("Re-analyze is only available inside Fusion");
+      return;
+    }
+    setAnalyzing(true);
+    // Give the "Analyzing…" state a chance to paint before Fusion runs the analysis on its main thread.
+    // (Not requestAnimationFrame: it doesn't fire while the palette isn't being painted.)
+    setTimeout(function () { window.adsk.fusionSendData("reanalyze", ""); }, 50);
   }
 
   // Fusion -> page: palette.sendInfoToHTML(action, data). Must return a non-empty string.
@@ -280,6 +300,7 @@ td.actions button { display: block; width: 100%; margin-bottom: 4px; }
       try {
         if (action === "results") show(JSON.parse(data));
         else if (action === "locateResult") toast(JSON.parse(data).message);
+        else if (action === "reanalyzeFailed") { setAnalyzing(false); toast(JSON.parse(data).message); }
         return "OK";
       } catch (e) {
         return "ERROR: " + e;
@@ -289,6 +310,7 @@ td.actions button { display: block; width: 100%; margin-bottom: 4px; }
 
   document.getElementById("search").oninput = renderRows;
   document.getElementById("copy-all").onclick = copyAll;
+  document.getElementById("reanalyze").onclick = reanalyze;
 
   // Page -> Fusion: ask for the latest results once Fusion's adsk bridge is available.
   var attempts = 0;

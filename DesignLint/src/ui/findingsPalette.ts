@@ -3,6 +3,7 @@
 // Handshake: the page sends "ready" (adsk.fusionSendData) once loaded; the add-in answers with
 // sendInfoToHTML("results", json). When the palette is already open, new results are sent directly.
 // The page sends "locate" with entity tokens; the add-in selects them and answers with "locateResult".
+// The page sends "reanalyze"; the add-in re-runs the analysis (new "results"), or answers "reanalyzeFailed".
 // Palettes.add with an HTML string fails in the TypeScript runtime ("colon (:) not allowed in the
 // path"), so the page is a file referenced by a path relative to the add-in folder.
 
@@ -29,7 +30,16 @@ const PAGE_ACTIONS = {
     results: "results",
     locate: "locate",
     locateResult: "locateResult",
+    reanalyze: "reanalyze",
+    reanalyzeFailed: "reanalyzeFailed",
 } as const;
+
+/** Runs the analysis; returns why it could not run, or null. Set by the command module. */
+let reanalyze: (() => string | null) | null = null;
+
+export function setReanalyzeHandler(handler: () => string | null): void {
+    reanalyze = handler;
+}
 
 let latestResultsJson: string | null = null;
 let latestContext: AnalysisContext | null = null;
@@ -91,6 +101,8 @@ function onIncomingFromHtml(ui: adsk.core.UserInterface, palette: adsk.core.Pale
                 reply = { ok: false, message: `Locate failed: ${errorMessage(err)}` };
             }
             palette.sendInfoToHTML(PAGE_ACTIONS.locateResult, JSON.stringify(reply));
+        } else if (args.action === PAGE_ACTIONS.reanalyze) {
+            handleReanalyze(palette);
         } else if (args.action !== "response") {
             // "response" carries the page's reply to sendInfoToHTML (asynchronous with the new browser).
             log(`Findings palette: unhandled message "${args.action}".`);
@@ -148,4 +160,18 @@ function handleLocate(ui: adsk.core.UserInterface, data: string): LocateReply {
 function isLocateTarget(value: unknown): value is LocateTarget {
     const t = value as Partial<LocateTarget> | null;
     return typeof t?.name === "string" && typeof t.entityToken === "string";
+}
+
+/** On success runAnalysis sends new results to this palette itself; only failures need a reply. */
+function handleReanalyze(palette: adsk.core.Palette): void {
+    let problem: string | null;
+    try {
+        problem = reanalyze ? reanalyze() : "Re-analyze is not available.";
+    } catch (err) {
+        log(`Re-analyze failed: ${errorMessage(err)}`);
+        problem = `Analysis failed: ${errorMessage(err)}`;
+    }
+    if (problem) {
+        palette.sendInfoToHTML(PAGE_ACTIONS.reanalyzeFailed, JSON.stringify({ message: problem }));
+    }
 }
