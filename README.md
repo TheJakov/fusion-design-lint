@@ -161,6 +161,10 @@ than raw Fusion objects.
 Later, possibly: team-wide engineering standards ("DesignLint Rules"), and MCP integration with Fusion's agentic
 tooling. That would only come after checking the current official Autodesk documentation for what it supports.
 
+## License
+
+[MIT](LICENSE) © 2026 Jakov Kristović
+
 ## Feedback
 
 This is an early alpha. Issues, false positives and "I wish it checked…" ideas are very welcome.

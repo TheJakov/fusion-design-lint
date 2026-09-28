@@ -1,6 +1,7 @@
 {
   "name": "fusion-design-lint",
   "private": true,
+  "license": "MIT",
   "description": "DesignLint — CAD quality & parametric design analysis for Autodesk Fusion. Dev tooling only; the add-in itself is DesignLint/.",
   "scripts": {
     "typecheck": "node scripts/typecheck.mjs",
